@@ -8,13 +8,10 @@ import android.content.IntentFilter
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.runtime.getValue
+// unused layout imports removed
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
+// Modifier not needed in this Activity
 import androidx.lifecycle.ViewModelProvider
 import com.example.productivityapp.app.ui.Screen
 import com.example.productivityapp.app.ui.home.HomeScreen
@@ -48,15 +45,15 @@ class MainActivity : ComponentActivity() {
         setContent {
             ProductivityAppTheme {
                 // Simple state-based navigation to avoid pulling in Navigation Compose dependency
-                var currentScreen by remember { mutableStateOf<Screen>(Screen.Home) }
+                val currentScreenState = remember { mutableStateOf<Screen>(Screen.Home) }
 
-                when (currentScreen) {
+                when (currentScreenState.value) {
                     is Screen.Home -> HomeScreen(
-                        onNavigateToWater = { currentScreen = Screen.WaterIntake },
+                        onNavigateToWater = { currentScreenState.value = Screen.WaterIntake },
                         waterViewModel = waterViewModel
                     )
                     is Screen.WaterIntake -> WaterIntakeScreen(
-                        onBack = { currentScreen = Screen.Home },
+                        onBack = { currentScreenState.value = Screen.Home },
                         viewModel = waterViewModel
                     )
                 }

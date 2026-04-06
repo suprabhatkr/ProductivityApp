@@ -16,7 +16,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.runtime.saveable.rememberSaveable
+// removed unused rememberSaveable import
 import androidx.compose.runtime.rememberCoroutineScope
 import java.time.LocalDate
 import androidx.compose.material3.SnackbarHost
@@ -324,8 +324,8 @@ private fun WaterRingHeader(totalMl: Int, goalMl: Int, fraction: Float) {
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Box(contentAlignment = Alignment.Center) {
-                RingChart(fraction = animatedFraction, sizeDp = 120, strokeDp = 12)
+                Box(contentAlignment = Alignment.Center) {
+                RingChart(fraction = animatedFraction)
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
                         "$totalMl",
@@ -353,7 +353,9 @@ private fun WaterRingHeader(totalMl: Int, goalMl: Int, fraction: Float) {
 }
 
 @Composable
-private fun RingChart(fraction: Float, sizeDp: Int, strokeDp: Int) {
+private fun RingChart(fraction: Float) {
+    val sizeDp = 120
+    val strokeDp = 12
     val sweepAngle = 360f * fraction
     androidx.compose.foundation.Canvas(
         modifier = Modifier.size(sizeDp.dp)
