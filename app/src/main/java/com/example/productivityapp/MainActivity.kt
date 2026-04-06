@@ -77,7 +77,7 @@ class MainActivity : ComponentActivity() {
         super.onStop()
         try {
             unregisterReceiver(dateReceiver)
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             // Ignore if already unregistered for any reason
         }
     }

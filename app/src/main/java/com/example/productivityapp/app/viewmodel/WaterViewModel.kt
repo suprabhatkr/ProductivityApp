@@ -9,10 +9,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.delay
-import java.time.LocalDate
-import java.time.LocalDateTime
-import java.time.temporal.ChronoUnit
+// removed unused imports related to the previous midnight coroutine
 
 class WaterViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -61,10 +58,6 @@ class WaterViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun updateGoal(goalMl: Int) {
-        if (goalMl <= 0) return
-        viewModelScope.launch {
-            repository.setGoal(goalMl)
-        }
-    }
+    // Goal update helper was removed from public API to avoid an unused-public warning.
+    // If you need to expose changing the goal from UI later, reintroduce a method here.
 }

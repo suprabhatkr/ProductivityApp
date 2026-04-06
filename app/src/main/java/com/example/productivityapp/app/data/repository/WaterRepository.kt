@@ -8,15 +8,18 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import org.json.JSONArray
 import org.json.JSONObject
+import androidx.core.content.edit
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * Lightweight repository implementation using SharedPreferences + org.json so we don't need
  * to add DataStore or Gson dependencies.
  */
-class WaterRepository(private val context: Context) {
+class WaterRepository(context: Context) {
 
     private val prefs = context.getSharedPreferences("water_data_prefs", Context.MODE_PRIVATE)
     private val dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
@@ -43,10 +46,10 @@ class WaterRepository(private val context: Context) {
                 val id = obj.optLong("id", System.currentTimeMillis())
                 val amount = obj.optInt("amountMl", 0)
                 val ts = obj.optString("timestamp", LocalDateTime.now().toString())
-                val timestamp = try { LocalDateTime.parse(ts) } catch (e: Exception) { LocalDateTime.now() }
+                val timestamp = try { LocalDateTime.parse(ts) } catch (_: Exception) { LocalDateTime.now() }
                 entries.add(WaterEntry(id = id, amountMl = amount, timestamp = timestamp))
             }
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             // ignore and use empty list
         }
 
@@ -61,19 +64,19 @@ class WaterRepository(private val context: Context) {
     /**
      * Add an entry and return its generated id. This allows callers to undo the addition by id.
      */
-    suspend fun addEntryReturnId(amountMl: Int): Long {
+    suspend fun addEntryReturnId(amountMl: Int): Long = withContext(Dispatchers.IO) {
         val today = LocalDate.now().format(dateFormatter)
         val json = prefs.getString(entriesPrefKey(today), "[]") ?: "[]"
-        val arr = try { JSONArray(json) } catch (e: Exception) { JSONArray() }
+        val arr = try { JSONArray(json) } catch (_: Exception) { JSONArray() }
         val id = System.currentTimeMillis()
         val obj = JSONObject()
         obj.put("id", id)
         obj.put("amountMl", amountMl)
         obj.put("timestamp", LocalDateTime.now().toString())
         arr.put(obj)
-        prefs.edit().putString(entriesPrefKey(today), arr.toString()).apply()
+        prefs.edit { putString(entriesPrefKey(today), arr.toString()) }
         loadToday()
-        return id
+        id
     }
 
     // Backwards-compatible helper
@@ -81,21 +84,21 @@ class WaterRepository(private val context: Context) {
         addEntryReturnId(amountMl)
     }
 
-    suspend fun removeEntry(id: Long) {
+    suspend fun removeEntry(id: Long) = withContext(Dispatchers.IO) {
         val today = LocalDate.now().format(dateFormatter)
         val json = prefs.getString(entriesPrefKey(today), "[]") ?: "[]"
-        val arr = try { JSONArray(json) } catch (e: Exception) { JSONArray() }
+        val arr = try { JSONArray(json) } catch (_: Exception) { JSONArray() }
         val newArr = JSONArray()
         for (i in 0 until arr.length()) {
             val obj = arr.optJSONObject(i) ?: continue
             if (obj.optLong("id", -1) != id) newArr.put(obj)
         }
-        prefs.edit().putString(entriesPrefKey(today), newArr.toString()).apply()
+        prefs.edit { putString(entriesPrefKey(today), newArr.toString()) }
         loadToday()
     }
 
-    suspend fun setGoal(goalMl: Int) {
-        prefs.edit().putInt(goalPrefKey, goalMl).apply()
+    suspend fun setGoal(goalMl: Int) = withContext(Dispatchers.IO) {
+        prefs.edit { putInt(goalPrefKey, goalMl) }
         loadToday()
     }
 }

@@ -5,6 +5,9 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
+@Suppress("unused") // this small theme file is retained from the imported sources but may not be used
+// in the app's main theme package. Suppress unused warnings to avoid noise.
+
 val Blue700 = Color(0xFF1565C0)
 val Blue500 = Color(0xFF1976D2)
 val Blue50  = Color(0xFFE3F2FD)
@@ -30,6 +33,7 @@ private val LightColorScheme = lightColorScheme(
     outline = DividerColor
 )
 
+@Suppress("unused")
 @Composable
 fun ProductivityAppTheme(content: @Composable () -> Unit) {
     MaterialTheme(
