@@ -1,0 +1,12 @@
+package com.example.productivityapp.data.repository
+
+import com.example.productivityapp.data.entities.SleepEntity
+import kotlinx.coroutines.flow.Flow
+
+interface SleepRepository {
+    fun observeSleepForDate(date: String): Flow<List<SleepEntity>>
+    suspend fun startSleep(session: SleepEntity): Long
+    suspend fun stopSleep(session: SleepEntity): SleepEntity
+    suspend fun updateSleep(session: SleepEntity)
+}
+

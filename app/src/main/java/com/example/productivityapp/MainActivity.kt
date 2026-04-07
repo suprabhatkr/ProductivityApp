@@ -1,84 +1,54 @@
 package com.example.productivityapp
 
-import android.os.Bundle
-import android.content.BroadcastReceiver
-import android.content.Context
-import android.content.Intent
-import android.content.IntentFilter
+// android.os.Bundle will be referenced explicitly to avoid ambiguous import issues
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.enableEdgeToEdge
-// unused layout imports removed
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-// Modifier not needed in this Activity
-import androidx.lifecycle.ViewModelProvider
-import com.example.productivityapp.app.ui.Screen
-import com.example.productivityapp.app.ui.home.HomeScreen
-import com.example.productivityapp.app.ui.water.WaterIntakeScreen
+import androidx.compose.ui.Modifier
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import com.example.productivityapp.app.ui.home.HomeScreen as AppHomeScreen
+import com.example.productivityapp.app.ui.water.WaterIntakeScreen as AppWaterScreen
+import com.example.productivityapp.ui.run.RunScreen
+import com.example.productivityapp.ui.sleep.SleepScreen
+import com.example.productivityapp.ui.steps.StepScreen
+import com.example.productivityapp.ui.settings.SettingsScreen
 import com.example.productivityapp.app.viewmodel.WaterViewModel
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.productivityapp.ui.theme.ProductivityAppTheme
 
 class MainActivity : ComponentActivity() {
-    // Keep the ViewModel as an Activity-level property so lifecycle-aware receivers can call it
-    private lateinit var waterViewModel: WaterViewModel
-
-    private val dateReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) {
-            // Forward the event to ViewModel to refresh today's data
-            if (this@MainActivity::waterViewModel.isInitialized) {
-                waterViewModel.refresh()
-            }
-        }
-    }
-
-    override fun onCreate(savedInstanceState: Bundle?) {
+    override fun onCreate(savedInstanceState: android.os.Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        // Obtain ViewModel the conventional way to avoid requiring compose viewmodel helpers
-        waterViewModel = ViewModelProvider(
-            this,
-            ViewModelProvider.AndroidViewModelFactory.getInstance(application)
-        )[WaterViewModel::class.java]
-
         setContent {
             ProductivityAppTheme {
-                // Simple state-based navigation to avoid pulling in Navigation Compose dependency
-                val currentScreenState = remember { mutableStateOf<Screen>(Screen.Home) }
+                val navController = rememberNavController()
 
-                when (currentScreenState.value) {
-                    is Screen.Home -> HomeScreen(
-                        onNavigateToWater = { currentScreenState.value = Screen.WaterIntake },
-                        waterViewModel = waterViewModel
-                    )
-                    is Screen.WaterIntake -> WaterIntakeScreen(
-                        onBack = { currentScreenState.value = Screen.Home },
-                        viewModel = waterViewModel
-                    )
+                NavHost(navController = navController, startDestination = "home") {
+                    composable("home") {
+                        val waterVm: WaterViewModel = viewModel()
+                        AppHomeScreen(
+                            onNavigateToWater = { navController.navigate("water") },
+                            waterViewModel = waterVm
+                        )
+                    }
+
+                    composable("steps") { StepScreen() }
+                    composable("run") { RunScreen() }
+                    composable("sleep") { SleepScreen() }
+                    composable("water") {
+                        val waterVm: com.example.productivityapp.app.viewmodel.WaterViewModel = viewModel()
+                        AppWaterScreen(onBack = { navController.popBackStack() }, viewModel = waterVm)
+                    }
+                    composable("settings") { SettingsScreen() }
                 }
             }
-        }
-    }
-
-    override fun onStart() {
-        super.onStart()
-        // Register dynamically while activity (app) is in foreground. This keeps behavior
-        // in-process only and avoids any background work when the app is not running.
-        val filter = IntentFilter().apply {
-            addAction(Intent.ACTION_DATE_CHANGED)
-            addAction(Intent.ACTION_TIME_CHANGED)
-            addAction(Intent.ACTION_TIMEZONE_CHANGED)
-        }
-        registerReceiver(dateReceiver, filter)
-    }
-
-    override fun onStop() {
-        super.onStop()
-        try {
-            unregisterReceiver(dateReceiver)
-        } catch (_: Exception) {
-            // Ignore if already unregistered for any reason
         }
     }
 }
