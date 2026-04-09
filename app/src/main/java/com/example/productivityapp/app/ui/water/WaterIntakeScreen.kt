@@ -63,6 +63,10 @@ fun WaterIntakeScreen(
     val keyboard = LocalSoftwareKeyboardController.current
     val dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
 
+    LaunchedEffect(Unit) {
+        viewModel.refresh()
+    }
+
     // If the ViewModel data refers to a previous date (e.g. app stayed open across
     // midnight), refresh immediately so UI shows the new empty day.
     LaunchedEffect(key1 = data.date) {

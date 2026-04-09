@@ -1,6 +1,6 @@
 # ProductivityApp — Feature Implementation Plan (KSP-ready)
 
-Last updated: 2026-04-07
+Last updated: 2026-04-09
 
 Purpose
 - This document is the authoritative implementation plan for the four new health features: Water, Sleep, Steps, Run.
@@ -111,13 +111,13 @@ Interpretation
 - Nothing was deleted — feature screens are staged: polished for water/home, minimal placeholders for other features. This is intentional given prioritization of data/model work.
 
 Phase 4 (PR #4) — Step sensor service + UI
-- [TODO] Implement `StepCounterService` to use `Sensor.TYPE_STEP_COUNTER` with baseline offsets, foreground notification opt-in, repository wiring.
+- [DONE] Implement `StepCounterService` to use `Sensor.TYPE_STEP_COUNTER` with baseline offsets, foreground notification opt-in, repository wiring. (2026-04-09)
 
 Phase 4 (PR #4) — Step sensor service + UI
-- [IN-PROGRESS] Implement `StepCounterService` to use `Sensor.TYPE_STEP_COUNTER` with baseline offsets, foreground notification opt-in, repository wiring. (2026-04-07)
-  - Files: `app/src/main/java/.../service/StepCounterService.kt` updated with LifecycleService-based foreground implementation.
-  - UI: `app/src/main/java/.../ui/steps/StepScreen.kt` updated to request `ACTIVITY_RECOGNITION` at runtime and start/stop the service.
-  - Next: add UI tests and ensure permission flows for Android 13+ and behavior when sensor is absent.
+- [DONE] Implement `StepCounterService` completion. (2026-04-09)
+  - Files: `app/src/main/java/.../service/StepCounterService.kt` finalized with date-aware baseline handling, batched repository writes, graceful missing-sensor/permission behavior, notification Stop action, and modern stopForeground handling.
+  - UI: `app/src/main/java/.../ui/steps/StepScreen.kt` now provides explicit permission rationale/settings fallback, ViewModel-backed service state, and robust manual-entry paths even when permission is denied or hardware sensor is absent.
+  - Tests: Robolectric service tests + Compose instrumentation content tests added and validated via compile/test tasks.
 
 Phase 5 (PR #5) — Run tracker service + map integration
 - [DONE] Implement `RunTrackingService` (foreground location), `RunMapView.kt` (OSMdroid via AndroidView), polyline storage, live stats. (2026-04-09)
@@ -136,27 +136,29 @@ Phase 5 (PR #5) — Run tracker service + map integration
 
 Service implementation notes & suggestions (implemented 2026-04-07)
 
-- [IN-PROGRESS] `StepCounterService` implemented (skeleton).
-  - Behavior: registers `Sensor.TYPE_STEP_COUNTER`, manages baseline offset, forwards increments to `StepRepository` on a background coroutine, runs as a foreground service with notification and Stop action.
-  - UI: `StepScreen` now requests `ACTIVITY_RECOGNITION`, shows rationale dialog when denied, and can start/stop the service.
-  - Caveats: device may not have a hardware step sensor — ensure manual step entry path remains available (already present).
+- [DONE] `StepCounterService` implemented. (2026-04-09)
+  - Behavior: registers `Sensor.TYPE_STEP_COUNTER`, keeps a date-aware last-total baseline, batches pending steps before writing to `StepRepository`, flushes on stop/destroy, and runs as a foreground service with notification and Stop action.
+  - UI: `StepScreen` now requests `ACTIVITY_RECOGNITION`, shows rationale/settings fallback, keeps manual quick-add + custom entry available, and hides automatic tracking controls when the sensor is absent.
+  - Caveats addressed: missing sensor and permission denial are now graceful, no-crash paths; service lifecycle covered by Robolectric tests.
 
-- [IN-PROGRESS] `RunTrackingService` implemented (skeleton).
-  - Behavior: uses `FusedLocationProviderClient` to receive location updates, computes incremental distance (haversine), updates a DB Run entry with distance, duration and a simple CSV/polyline string.
-  - UI: `RunScreen` now requests `ACCESS_FINE_LOCATION` and optionally `ACCESS_BACKGROUND_LOCATION` with rationale and settings fallback.
-  - Caveats & suggestions:
-    - Background location request behaviour varies by Android version; include explicit opt-in flow and open-app-settings fallback (implemented).
-    - Replace the simple CSV polyline with an encoded polyline or separate location-points table for efficient storage and replay.
-    - Consider making the location client injectable (for tests) or wrap repository updates behind a small interface for easier mocking.
+- [DONE] `RunTrackingService` implemented. (2026-04-09)
+  - Behavior: uses an injectable `LocationProvider`, computes incremental distance with jitter/improbable-jump filtering, persists encoded polyline updates through `RunRepository`, and supports replay helpers / point-table migration.
+  - UI: `RunScreen` now requests `ACCESS_FINE_LOCATION`, supports background-location opt-in, and includes live stats + replay controls.
+  - Follow-ups: tune heuristics/config if needed; device QA for long-running background sessions remains recommended.
 
 - Build & verification:
-  - Both services and updated Compose screens were compiled successfully (`./gradlew :app:compileDebugKotlin`).
-  - Warnings: `stopForeground(true)` is deprecated in some SDKs — consider the modern APIs where applicable.
+  - Both services and updated Compose screens compile successfully.
+  - Latest validated commands (2026-04-09):
+    - `./gradlew :app:compileDebugKotlin`
+    - `./gradlew :app:testDebugUnitTest`
+    - `./gradlew :app:compileDebugAndroidTestKotlin`
+    - `./gradlew :app:assembleDebug`
+  - `stopForeground(true)` deprecation removed from Run service and Step service on newer SDKs.
 
 - Testing recommendations (next actions):
-  - Add Robolectric or ServiceTestRule tests for service lifecycle (start/stop, notification creation).
-  - Integration/device tests for GPS accuracy, permission denial flows, and sensor absence handling.
-  - Add UI tests for permission rationale dialogs (Compose testing + permission mocking helpers).
+  - Continue adding device/integration tests for GPS accuracy and long-background run sessions.
+  - Expand step/run Compose tests beyond content-only checks into full navigation/service interaction paths.
+  - Add device QA for sensor absence / permission denial across OEM variations.
 
 Next feature work (short-term)
 
@@ -167,10 +169,40 @@ Next feature work (short-term)
 
 
 Phase 6 (PR #6) — Sleep tracker UI & persistence
-- [TODO] Sleep session start/stop, quality rating, weekly charts.
+- [DONE] Sleep session start/stop, quality rating, weekly charts. (2026-04-09)
+  - Files changed/added:
+    - `app/src/main/java/com/example/productivityapp/ui/sleep/SleepScreen.kt` — full sleep tracker UI with start/pause/resume/stop, review card, weekly chart, and history list.
+    - `app/src/main/java/com/example/productivityapp/viewmodel/SleepViewModel.kt` — active session state, timer, pause/resume handling, pending review flow, and weekly summaries.
+    - `app/src/main/java/com/example/productivityapp/data/dao/SleepDao.kt` — active session, weekly range, and lookup queries.
+    - `app/src/main/java/com/example/productivityapp/data/repository/SleepRepository.kt` / `data/repository/impl/RoomSleepRepository.kt` — expanded API for active session and weekly history.
+    - `app/src/test/java/com/example/productivityapp/viewmodel/SleepViewModelTest.kt` — ViewModel unit tests.
+    - `app/src/test/java/com/example/productivityapp/data/repository/impl/SleepRepositoryUnitTest.kt` — repository tests extended for active session + range queries.
+  - Acceptance met:
+    - Start/pause/resume/stop sleep flows implemented.
+    - Sleep sessions persisted with `startTimestamp`, `endTimestamp`, `durationSec`.
+    - Quality rating + notes flow implemented after session stop.
+    - Weekly chart and history list implemented.
+    - Unit tests added for ViewModel and repository interactions.
+  - Follow-ups:
+    - Accessibility/content-description polish for sleep controls and rating inputs.
+    - Optional sleep tips / nap quick actions if desired later.
 
 Phase 7 (PR #7) — Water quick-add + Settings + polish + tests
-- [TODO] Water DataStore wiring, auto-reset, settings UI (stride length, weight), privacy & security finalization, tests and QA.
+- [IN-PROGRESS] Water quick-add + settings/profile + privacy polish slice. (2026-04-09)
+  - [DONE] `app/src/main/java/com/example/productivityapp/ui/settings/SettingsScreen.kt` replaced with a real settings UI backed by `SettingsViewModel`. (2026-04-09)
+    - Supports editing display name, weight, height, stride length, preferred units, daily step goal, and daily water goal.
+    - Adds local privacy/storage messaging plus a reset action for sensitive profile fields.
+    - Home screen now exposes a visible Settings entry point and the settings route supports back navigation.
+  - [DONE] `app/src/main/java/com/example/productivityapp/datastore/UserDataStore.kt` profile updates now clear removed optional values instead of leaving stale encrypted fields behind. (2026-04-09)
+  - [DONE] JVM coverage added for settings profile logic via `app/src/test/java/.../viewmodel/SettingsViewModelTest.kt`. (2026-04-09)
+  - [DONE] Water + step goal unification started and validated. (2026-04-09)
+    - `WaterRepository.kt` now reads the daily water goal from `UserDataStore` / `UserProfile.dailyWaterGoalMl` instead of a separate legacy goal preference.
+    - `HomeScreen.kt` and `WaterIntakeScreen.kt` now refresh water state on screen entry so settings changes are reflected after navigation.
+    - `StepViewModel.kt` now observes `UserProfileRepository` and exposes the saved daily step goal; `StepScreen.kt` renders a goal-progress card from that shared value.
+    - `StepViewModelTest.kt` added to verify profile-goal propagation through the step feature.
+  - [TODO] Optionally migrate remaining water entry storage from legacy SharedPreferences JSON to DataStore/Room if full persistence unification is desired later.
+  - [TODO] Add export/delete controls and broader privacy policy UX once the final retention flow is decided.
+  - [TODO] Add Compose/UI tests for settings interactions if this screen grows further.
 
 -----------------------------------------------------------------
 SECTION 2 — Exact files to add/modify (detailed)
@@ -325,7 +357,10 @@ Quick test commands
 Recommended additional tests (TODO)
 - [TODO] Add Robolectric-based JVM tests for repositories so CI doesn't require an emulator.
 - [TODO] Add DataStore unit tests using TestCoroutineDispatcher and a temporary directory.
-- [TODO] Add ViewModel unit tests (mock repositories) to validate state updates.
+ - [IN-PROGRESS] Add ViewModel unit tests (mock repositories) to validate state updates.
+   - [DONE] `SleepViewModelTest.kt` covers sleep session state and summaries. (2026-04-09)
+   - [DONE] `SettingsViewModelTest.kt` covers profile load/save/reset validation and repository updates. (2026-04-09)
+   - [TODO] Add similarly focused ViewModel tests for Run and Steps if those screens grow more derived UI state.
 - [TODO] Add Service tests (Robolectric or ServiceTestRule) for StepCounterService and RunTrackingService.
  - [IN-PROGRESS] Add Service tests (Robolectric or ServiceTestRule) for StepCounterService and RunTrackingService. (2026-04-07)
   - Plan: add lifecycle tests for start/pause/stop and notification assertions; mock FusedLocationProviderClient for location handling.
@@ -397,7 +432,19 @@ SECTION 9 — How to update this plan programmatically
       - Consider extracting calibration parameters (jitter threshold, jump threshold, max plausible speed) to config for easier tuning.
       - 2026-04-09 polish: `RunScreen.kt` upgraded with live stats cards, replay slider/playback controls, and `RunMapView` replay marker support. `RunTrackingService` now uses the non-deprecated `stopForeground(STOP_FOREGROUND_REMOVE)` path on newer SDKs.
 
- - [IN-PROGRESS] Finish StepCounterService and add Service lifecycle tests (Robolectric/ServiceTestRule) and permission flows.
+ - [DONE] Finish StepCounterService and add Service lifecycle tests (Robolectric/ServiceTestRule) and permission flows. (2026-04-09)
+   - Files changed/added:
+     - `app/src/main/java/com/example/productivityapp/service/StepCounterService.kt` — date-aware baseline, batched repository writes, graceful no-sensor handling, stop action, modern stopForeground path.
+     - `app/src/main/java/com/example/productivityapp/ui/steps/StepScreen.kt` — permission rationale/settings fallback, manual quick-add + custom entry, sensor-absence UX, ViewModel-backed running state.
+     - `app/src/main/java/com/example/productivityapp/viewmodel/StepViewModel.kt` — service-running state exposed to UI.
+     - `app/src/test/java/com/example/productivityapp/service/StepCounterServiceUnitTest.kt` — Robolectric lifecycle/batching/rollover tests.
+     - `app/src/androidTest/java/com/example/productivityapp/ui/steps/StepScreenContentTest.kt` — Compose content tests for sensor absence and permission fallback.
+   - Acceptance met:
+     - Baseline and periodic repository writes finalized.
+     - Foreground notification Stop action and proper stop behavior implemented.
+     - Permission rationale + settings fallback implemented.
+     - Manual entry path remains available without sensor or permission.
+     - Service lifecycle and UI compile/test coverage added.
 
  - [TODO] Wire ViewModels to expose live running/service state and flows for UI (persist running state in ViewModel and repository).
 
@@ -413,6 +460,10 @@ SECTION 9 — How to update this plan programmatically
  - 2026-04-07: Service skeletons for StepCounterService and RunTrackingService implemented; service tests are in progress. (IN-PROGRESS)
 
    - 2026-04-09: ISSUE #2 — UserProfile observe/update bug fixed: `UserDataStore.updateUserProfile` now suspends, writes encrypted prefs and touches a DataStore profile_version key so `observeUserProfile()` emits reliably. (DONE)
+     - 2026-04-09: Issue #3 (Run tracker) fully completed and build/tests validated. (DONE)
+     - 2026-04-09: Issue #4 (Steps tracker service + permission flows + tests) completed and build/tests validated. (DONE)
+    - 2026-04-09: Sleep feature implemented: session flows, quality rating, weekly chart/history, and JVM tests completed and validated. (DONE)
+    - 2026-04-09: Settings/profile slice implemented: repository-backed `SettingsScreen`, `SettingsViewModel`, home navigation entry, profile reset support, and JVM tests validated. (DONE / Phase 7 in progress)
 
    - Note: This file was updated to explicitly track "polished UI for every window" as part of the short-term priorities so the next session can pick this up easily.
 
@@ -428,9 +479,10 @@ Contact / notes
   The following granular per-screen TODOs were generated automatically and should be appended here so the UI polish work is tracked at a fine-grained level. Copy this section into the relevant place in the plan as work proceeds and update status tags inline.
 
   ### Steps Screen (file: `app/src/main/java/.../ui/steps/StepScreen.kt`)
-  - [ ] Implement live step display bound to `StepViewModel.observeSteps(date)` (StateFlow/Flow).
+  - [x] Implement live step display bound to `StepViewModel.observeSteps(date)` (StateFlow/Flow).
   - [ ] Add Start / Pause / Stop controls that start/stop `StepCounterService` and persist state in ViewModel.
   - [ ] Permission flow: show rationale for `ACTIVITY_RECOGNITION`, and fall back to manual step entry when absent.
+  - [x] Surface the saved daily step goal and progress in the screen UI.
   - [ ] Add compact chart (bar chart) showing steps over last 7 days; add touch-to-view details.
   - [ ] Add content descriptions for all interactive elements and a11y-focused label for step count.
   - [ ] Add UI tests (Compose) for permission dialog and start/stop service flow.
@@ -445,23 +497,26 @@ Contact / notes
   - [ ] Add UI tests for RunScreen interactions and RunMapView rendering (instrumentation or Robolectric as appropriate).
 
   ### Sleep Screen (file: `app/src/main/java/.../ui/sleep/SleepScreen.kt`)
-  - [ ] Implement Start / Stop session controls and display current session duration when running.
-  - [ ] After Stop: present a quality rating UI (1–5 stars) and optional notes text input; persist to repository.
-  - [ ] History view: weekly line/bar chart showing sleep duration and average quality; tap to open day details.
+  - [x] Implement Start / Stop session controls and display current session duration when running.
+  - [x] After Stop: present a quality rating UI (1–5 stars) and optional notes text input; persist to repository.
+  - [x] History view: weekly line/bar chart showing sleep duration and average quality; tap to open day details.
   - [ ] Add small tips: suggested sleep goals and quick actions (e.g., "Start nap timer").
   - [ ] Accessibility: label session controls and rating UI for screen readers.
-  - [ ] Add ViewModel unit tests and Compose UI tests for session start/stop and rating persistence.
+  - [x] Add ViewModel unit tests and repository interaction tests for session start/stop and rating persistence.
+  - [ ] Add Compose UI tests for sleep screen interactions.
 
   ### Settings Screen (file: `app/src/main/java/.../ui/settings/SettingsScreen.kt`)
-  - [ ] Add fields to edit user profile and PII (weightKg, heightCm) and stride length. Persist via `UserDataStore`.
-  - [ ] Add toggles for units (metric/imperial), run tracking defaults (follow-map, auto-pause), and background location opt-in explanation (not the actual request).
-  - [ ] Add a privacy screen link explaining data collection, retention and export/delete options.
-  - [ ] Add security options: enable/disable encrypted DataStore values and show indicators for sensitive fields.
-  - [ ] Add tests for settings ViewModel and DataStore interactions.
+  - [x] Add fields to edit user profile and PII (weightKg, heightCm) and stride length. Persist via `UserDataStore`.
+  - [x] Add toggles for units (metric/imperial) and a local explanation of on-device storage / privacy behavior.
+  - [ ] Add explicit run tracking defaults (follow-map, auto-pause) if those settings become part of the `UserProfile` model.
+  - [ ] Add a richer privacy screen or export/delete flow explaining retention and removal options.
+  - [ ] Add security indicators / migration plan away from deprecated `EncryptedSharedPreferences` if needed later.
+  - [x] Add tests for settings ViewModel interactions.
 
   ### Home / Water (files: `HomeScreen.kt`, `WaterIntakeScreen.kt`)
   - [ ] Home: ensure tiles reflect per-feature accent colors and provide quick actions (start run, add water, start sleep).
-  - [ ] Water: quick-add buttons (+100ml, +250ml), manual entry, and daily goal progress bar.
+  - [x] Water: quick-add buttons (+100ml, +250ml), manual entry, and daily goal progress bar.
+  - [x] Water goal now follows the saved `UserProfile.dailyWaterGoalMl` setting.
   - [ ] Water auto-reset: ensure midnight reset behavior is clear in UI (show last reset time) and allow opt-out in Settings.
   - [ ] Add accessibility labels for quick-add buttons and home tiles.
   - [ ] Add unit tests for WaterDataStore interactions and UI tests for the quick-add flows.

@@ -13,6 +13,15 @@ interface SleepDao {
     @Query("SELECT * FROM sleeps WHERE date = :date ORDER BY startTimestamp DESC")
     fun observeForDate(date: String): Flow<List<SleepEntity>>
 
+    @Query("SELECT * FROM sleeps WHERE date BETWEEN :startDate AND :endDate ORDER BY startTimestamp DESC")
+    fun observeForDateRange(startDate: String, endDate: String): Flow<List<SleepEntity>>
+
+    @Query("SELECT * FROM sleeps WHERE endTimestamp = 0 ORDER BY startTimestamp DESC LIMIT 1")
+    suspend fun getActiveSession(): SleepEntity?
+
+    @Query("SELECT * FROM sleeps WHERE id = :id LIMIT 1")
+    suspend fun getById(id: Long): SleepEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(sleep: SleepEntity): Long
 

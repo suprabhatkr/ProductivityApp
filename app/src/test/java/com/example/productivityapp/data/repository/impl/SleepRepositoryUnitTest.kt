@@ -8,10 +8,13 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.flow.first
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Before
 import org.junit.Test
 import org.robolectric.RobolectricTestRunner
 import org.junit.runner.RunWith
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 
 @RunWith(RobolectricTestRunner::class)
 class SleepRepositoryUnitTest {
@@ -46,6 +49,37 @@ class SleepRepositoryUnitTest {
         val id = repo.startSleep(sleep)
         val sessions = repo.observeSleepForDate("2026-04-07").first()
         assertEquals(1, sessions.size)
+    }
+
+    @Test
+    fun activeSessionAndWeeklyRangeQueries_work() = runTest {
+        val today = LocalDate.now()
+        val active = com.example.productivityapp.data.entities.SleepEntity(
+            date = today.format(DateTimeFormatter.ISO_LOCAL_DATE),
+            startTimestamp = 1_000L,
+            endTimestamp = 0L,
+            durationSec = 0L,
+            sleepQuality = null,
+            notes = null,
+        )
+        val old = com.example.productivityapp.data.entities.SleepEntity(
+            date = today.minusDays(2).format(DateTimeFormatter.ISO_LOCAL_DATE),
+            startTimestamp = 2_000L,
+            endTimestamp = 4_000L,
+            durationSec = 7200L,
+            sleepQuality = 5,
+            notes = "good",
+        )
+
+        repo.startSleep(old)
+        repo.startSleep(active)
+
+        assertNotNull(repo.getActiveSleepSession())
+        val weekly = repo.observeSleepForRange(
+            today.minusDays(6).format(DateTimeFormatter.ISO_LOCAL_DATE),
+            today.format(DateTimeFormatter.ISO_LOCAL_DATE)
+        ).first()
+        assertEquals(2, weekly.size)
     }
 }
 

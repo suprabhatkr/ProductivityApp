@@ -3,6 +3,7 @@ package com.example.productivityapp.app.data.repository
 import android.content.Context
 import com.example.productivityapp.app.data.model.WaterDayData
 import com.example.productivityapp.app.data.model.WaterEntry
+import com.example.productivityapp.datastore.UserDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -22,20 +23,20 @@ import kotlinx.coroutines.withContext
 class WaterRepository(context: Context) {
 
     private val prefs = context.getSharedPreferences("water_data_prefs", Context.MODE_PRIVATE)
+    private val userDataStore = UserDataStore(context.applicationContext)
     private val dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
 
-    private val _todayData = MutableStateFlow(WaterDayData(date = "", goalMl = 2500))
+    private val _todayData = MutableStateFlow(WaterDayData(date = "", goalMl = 2000))
 
     init {
         loadToday()
     }
 
     private fun entriesPrefKey(date: String) = "entries_$date"
-    private val goalPrefKey = "daily_goal_ml"
 
     private fun loadToday() {
         val today = LocalDate.now().format(dateFormatter)
-        val goal = prefs.getInt(goalPrefKey, 2500)
+        val goal = userDataStore.getUserProfileBlocking().dailyWaterGoalMl
         val json = prefs.getString(entriesPrefKey(today), "[]") ?: "[]"
 
         val entries = mutableListOf<WaterEntry>()
@@ -97,8 +98,4 @@ class WaterRepository(context: Context) {
         loadToday()
     }
 
-    suspend fun setGoal(goalMl: Int) = withContext(Dispatchers.IO) {
-        prefs.edit { putInt(goalPrefKey, goalMl) }
-        loadToday()
-    }
 }

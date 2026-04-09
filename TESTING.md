@@ -6,6 +6,18 @@ Status (2026-04-09)
 - Unit / Robolectric JVM tests for repositories: present under `app/src/test/java/.../data/repository/impl/` (Step/Run/Sleep).
 - Preferences DataStore unit test: `app/src/test/java/.../datastore/DataStoreUnitTest.kt` (temporary-file based).
 - Instrumentation tests (androidTest) exist for some repository integrations (in-memory Room).
+- Step feature tests added:
+  - `app/src/test/java/.../service/StepCounterServiceUnitTest.kt` — lifecycle, batching, rollover, graceful no-sensor behavior.
+  - `app/src/androidTest/java/.../ui/steps/StepScreenContentTest.kt` — content-level Compose checks for sensor absence and permission fallback UI.
+- Run feature replay test added:
+  - `app/src/test/java/.../run/RunReplayHelperUnitTest.kt` — replay timeline generation and timestamp behavior.
+- Sleep feature tests added:
+  - `app/src/test/java/.../viewmodel/SleepViewModelTest.kt` — session flow, pause/resume/stop, review persistence, weekly summary aggregation.
+  - `app/src/test/java/.../data/repository/impl/SleepRepositoryUnitTest.kt` — active-session and weekly-range repository behavior.
+- Settings/profile tests added:
+  - `app/src/test/java/.../viewmodel/SettingsViewModelTest.kt` — profile load/save/reset validation against a fake `UserProfileRepository`.
+- Step goal propagation test added:
+  - `app/src/test/java/.../viewmodel/StepViewModelTest.kt` — verifies the saved daily step goal flows from `UserProfileRepository` into step UI state.
 
 Table of contents
 - Running tests locally
@@ -99,12 +111,17 @@ Troubleshooting & common fixes
 - DataStore tests: if you see `UncompletedCoroutinesError`, ensure any custom DataStore CoroutineScope is cancelled at the end of the test and use `kotlinx.coroutines.test.runTest` correctly.
 - EncryptedSharedPreferences / MasterKey warnings: `androidx.security` APIs may show deprecation warnings depending on the version of the library; these are warnings only. Consider migrating to encrypted Proto DataStore for profile storage for stronger typing and testability.
 - Lint errors (example: foregroundServiceType=location): follow plan notes to add `uses-permission android.permission.FOREGROUND_SERVICE_LOCATION` in the manifest; run `./gradlew :app:lintDebug` to reproduce.
+- Step sensor tests: `StepCounterServiceUnitTest` uses Robolectric + an in-memory Room DB via `DatabaseProvider.setTestInstance(...)`. If a batching assertion fails, check pending-step thresholds and flush timing in `StepCounterService`.
+- Compose content tests: `StepScreenContentTest` intentionally tests the extracted `StepScreenContent(...)` composable rather than the full permission API wiring to keep tests deterministic and emulator-free during compilation.
 
 Adding more tests
 
 - Repository tests: add more unit tests under `app/src/test/java/...` and follow the same Robolectric + Room.inMemoryDatabaseBuilder pattern.
 - DataStore tests: use temporary directories and cancel background scopes.
 - ViewModel tests: mock repository interfaces (use `mockito-kotlin` or `mockk`) and test state flows using `kotlinx-coroutines-test`.
+- Settings ViewModel tests: validate form hydration, numeric-field validation, save behavior, and reset behavior without needing Android framework dependencies.
+- Service tests: prefer small deterministic hooks (`@VisibleForTesting`) over reflection when asserting lifecycle state or notification contents.
+- Sleep ViewModel tests: avoid `advanceUntilIdle()` on repeating timers; prefer `runCurrent()` / controlled scheduler advancement when the ViewModel owns a perpetual timer job.
 
 If you want, I can add the GitHub Actions workflow file now or add more unit tests (for `UserDataStore.observeUserProfile` + `updateUserProfile`) — tell me which you'd prefer.
 

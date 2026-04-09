@@ -19,7 +19,7 @@ class WaterViewModel(application: Application) : AndroidViewModel(application) {
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
-            initialValue = WaterDayData(date = "", goalMl = 2500)
+            initialValue = WaterDayData(date = "", goalMl = 2000)
         )
 
     init {

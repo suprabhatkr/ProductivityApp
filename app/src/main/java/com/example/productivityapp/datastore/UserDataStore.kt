@@ -102,9 +102,25 @@ class UserDataStore(private val context: Context) {
         // Use withContext(Dispatchers.IO) to perform blocking file I/O off the main thread.
         withContext(Dispatchers.IO) {
             val editor = securePrefs.edit()
-            profile.displayName?.let { editor.putString(PROFILE_NAME_KEY, it) }
-            profile.weightKg?.let { editor.putString(PROFILE_WEIGHT_KEY, it.toString()) }
-            profile.heightCm?.let { editor.putInt(PROFILE_HEIGHT_KEY, it) }
+            val displayName = profile.displayName?.trim().orEmpty()
+            if (displayName.isBlank()) {
+                editor.remove(PROFILE_NAME_KEY)
+            } else {
+                editor.putString(PROFILE_NAME_KEY, displayName)
+            }
+
+            if (profile.weightKg != null) {
+                editor.putString(PROFILE_WEIGHT_KEY, profile.weightKg.toString())
+            } else {
+                editor.remove(PROFILE_WEIGHT_KEY)
+            }
+
+            if (profile.heightCm != null) {
+                editor.putInt(PROFILE_HEIGHT_KEY, profile.heightCm)
+            } else {
+                editor.remove(PROFILE_HEIGHT_KEY)
+            }
+
             editor.putString(PROFILE_STRIDE_KEY, profile.strideLengthMeters.toString())
             editor.putString(PROFILE_UNITS_KEY, profile.preferredUnits)
             editor.putInt(PROFILE_STEP_GOAL_KEY, profile.dailyStepGoal)
