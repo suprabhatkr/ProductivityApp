@@ -21,7 +21,7 @@ class RunRepositoryTest {
     fun setup() {
         val ctx = InstrumentationRegistry.getInstrumentation().targetContext
         db = Room.inMemoryDatabaseBuilder(ctx, AppDatabase::class.java).build()
-        repo = RoomRunRepository(db.runDao())
+        repo = RoomRunRepository(db)
     }
 
     @After

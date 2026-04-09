@@ -19,7 +19,7 @@ object RepositoryProvider {
 
     fun provideRunRepository(context: Context): RunRepository {
         val db = DatabaseProvider.getInstance(context)
-        return RoomRunRepository(db.runDao())
+        return RoomRunRepository(db)
     }
 
     fun provideSleepRepository(context: Context): SleepRepository {

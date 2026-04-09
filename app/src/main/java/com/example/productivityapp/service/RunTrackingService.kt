@@ -9,6 +9,7 @@ import android.content.Intent
 import android.location.Location
 import android.os.Build
 import android.os.IBinder
+import android.os.SystemClock
 import androidx.core.app.NotificationCompat
 import android.app.Service
 import com.example.productivityapp.data.RepositoryProvider
@@ -18,7 +19,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlin.math.*
-import com.example.productivityapp.util.PolylineUtils
 
 /**
  * Foreground service skeleton for run tracking. Uses FusedLocationProviderClient to collect
@@ -37,22 +37,28 @@ class RunTrackingService : Service() {
     }
 
     private val scope = CoroutineScope(Dispatchers.Default + Job())
-    private lateinit var fusedClient: FusedLocationProviderClient
+    private var locationProvider: LocationProvider? = null
     private lateinit var locationRequest: LocationRequest
     private var locationCallback: LocationCallback? = null
+    private var isPaused: Boolean = false
+    private var elapsedBeforePauseMs: Long = 0L
+    private var activeSegmentStartElapsedMs: Long = 0L
 
     private var runId: Long = -1L
     private var lastLocation: Location? = null
     private var distanceMeters: Double = 0.0
     private var startTimeMs: Long = 0L
-    // in-memory list of lat/lng pairs for encoding polyline
-    private val points: MutableList<Pair<Double, Double>> = mutableListOf()
 
     override fun onCreate() {
         super.onCreate()
-        fusedClient = LocationServices.getFusedLocationProviderClient(this)
+        locationProvider = FusedLocationProviderWrapper(this)
         locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 5000L).build()
         createNotificationChannel()
+    }
+
+    // Test helper to inject a fake LocationProvider (Robolectric/unit tests)
+    fun setLocationProvider(provider: LocationProvider) {
+        this.locationProvider = provider
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -69,9 +75,14 @@ class RunTrackingService : Service() {
     }
 
     private fun startRun() {
+        if (runId > 0L && !isPaused) return
+
         // start foreground
         startForeground(NOTIF_ID, buildNotification("Run tracking"))
         startTimeMs = System.currentTimeMillis()
+        activeSegmentStartElapsedMs = SystemClock.elapsedRealtime()
+        elapsedBeforePauseMs = 0L
+        isPaused = false
         distanceMeters = 0.0
         lastLocation = null
 
@@ -107,36 +118,47 @@ class RunTrackingService : Service() {
             }
         }
         try {
-            fusedClient.requestLocationUpdates(locationRequest, locationCallback!!, mainLooper)
+            locationProvider?.requestLocationUpdates(locationRequest, locationCallback!!)
         } catch (e: SecurityException) {
             // location permission missing — callers must request permission before starting service
         }
     }
 
     private fun pauseRun() {
+        if (isPaused) return
         try {
-            locationCallback?.let { fusedClient.removeLocationUpdates(it) }
+            locationCallback?.let { locationProvider?.removeLocationUpdates(it) }
         } catch (t: Throwable) {
         }
+        elapsedBeforePauseMs += (SystemClock.elapsedRealtime() - activeSegmentStartElapsedMs).coerceAtLeast(0L)
+        isPaused = true
     }
 
     private fun resumeRun() {
+        if (!isPaused) return
+        activeSegmentStartElapsedMs = SystemClock.elapsedRealtime()
         locationCallback?.let {
             try {
-                fusedClient.requestLocationUpdates(locationRequest, it, mainLooper)
+                locationProvider?.requestLocationUpdates(locationRequest, it)
             } catch (e: SecurityException) {
             }
         }
+        isPaused = false
     }
 
     private fun stopRun() {
         try {
-            locationCallback?.let { fusedClient.removeLocationUpdates(it) }
+            locationCallback?.let { locationProvider?.removeLocationUpdates(it) }
         } catch (t: Throwable) {
         }
 
         val endTime = System.currentTimeMillis()
-        val durationSec = ((endTime - startTimeMs) / 1000L).coerceAtLeast(0L)
+        val totalActiveMs = elapsedBeforePauseMs + if (!isPaused) {
+            (SystemClock.elapsedRealtime() - activeSegmentStartElapsedMs).coerceAtLeast(0L)
+        } else {
+            0L
+        }
+        val durationSec = (totalActiveMs / 1000L).coerceAtLeast(0L)
 
         scope.launch {
             try {
@@ -157,42 +179,63 @@ class RunTrackingService : Service() {
             }
         }
 
-        stopForeground(true)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+        } else {
+            @Suppress("DEPRECATION")
+            stopForeground(true)
+        }
         stopSelf()
     }
 
     private fun handleLocation(loc: Location) {
-        // compute incremental distance
+        if (isPaused) return
+
         val prev = lastLocation
+        val nowMs = loc.time.takeIf { it > 0L } ?: System.currentTimeMillis()
+
+        var accept = true
         if (prev != null) {
             val d = haversine(prev.latitude, prev.longitude, loc.latitude, loc.longitude)
-            if (d > 0.5) { // ignore tiny jitter < 0.5 meters
-                distanceMeters += d
-            }
-        }
-        lastLocation = loc
+            val prevTime = prev.time.takeIf { it > 0L } ?: startTimeMs
+            val dtSec = ((nowMs - prevTime) / 1000.0).coerceAtLeast(0.001)
+            val speed = if (dtSec > 0) d / dtSec else Double.POSITIVE_INFINITY
 
-        // update repository with latest stats (non-blocking)
+            // filter improbably large jumps: >50m in <1s unless speed plausible (<15 m/s)
+            if (d > 50.0 && dtSec < 1.0 && speed > 15.0) {
+                accept = false
+            }
+
+            // ignore tiny jitter
+            if (d < 0.5) accept = false
+
+            if (accept) distanceMeters += d
+        }
+        if (accept) lastLocation = loc
+
+        if (!accept) return
+
+        // persist the new location point via repository helper
         scope.launch {
             try {
                 val repo = RepositoryProvider.provideRunRepository(applicationContext)
-                val existing = if (runId > 0) repo.getRunById(runId) else null
-                if (existing != null) {
-                    val now = System.currentTimeMillis()
-                    val durationSec = ((now - startTimeMs) / 1000L).coerceAtLeast(1L)
-                    val avgSpeed = distanceMeters / durationSec
-                    // append to polyline as simple CSV lat;lon;ts — replace with encoded polyline in future
-                    // append to in-memory points and encode as polyline
-                    points.add(Pair(loc.latitude, loc.longitude))
-                    val encoded = PolylineUtils.encode(points)
-                    val updated = existing.copy(
-                        distanceMeters = distanceMeters,
-                        durationSec = durationSec,
-                        avgSpeedMps = avgSpeed,
-                        calories = existing.calories,
-                        polyline = encoded
-                    )
-                    repo.updateRun(updated)
+                if (runId > 0) {
+                    repo.addLocationPoint(runId, loc.latitude, loc.longitude, nowMs)
+
+                    // update distance/duration/speed on the run record as well
+                    val existing = repo.getRunById(runId)
+                    if (existing != null) {
+                        val totalActiveMs = elapsedBeforePauseMs +
+                            (SystemClock.elapsedRealtime() - activeSegmentStartElapsedMs).coerceAtLeast(0L)
+                        val durationSec = (totalActiveMs / 1000L).coerceAtLeast(1L)
+                        val avgSpeed = distanceMeters / durationSec
+                        val updated = existing.copy(
+                            distanceMeters = distanceMeters,
+                            durationSec = durationSec,
+                            avgSpeedMps = avgSpeed
+                        )
+                        repo.updateRun(updated)
+                    }
                 }
             } catch (t: Throwable) {
             }

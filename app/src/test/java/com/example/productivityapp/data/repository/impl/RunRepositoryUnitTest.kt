@@ -23,7 +23,7 @@ class RunRepositoryUnitTest {
         db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
             .allowMainThreadQueries()
             .build()
-        repo = RoomRunRepository(db.runDao())
+        repo = RoomRunRepository(db)
     }
 
     @After

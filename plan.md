@@ -120,19 +120,19 @@ Phase 4 (PR #4) — Step sensor service + UI
   - Next: add UI tests and ensure permission flows for Android 13+ and behavior when sensor is absent.
 
 Phase 5 (PR #5) — Run tracker service + map integration
-- [TODO] Implement `RunTrackingService` (foreground location), `RunMapView.kt` (OSMdroid via AndroidView), polyline storage, live stats.
+- [DONE] Implement `RunTrackingService` (foreground location), `RunMapView.kt` (OSMdroid via AndroidView), polyline storage, live stats. (2026-04-09)
 
 Phase 5 (PR #5) — Run tracker service + map integration
-- [IN-PROGRESS] Implement `RunTrackingService` (foreground location) skeleton. (2026-04-07)
-  - Files: `app/src/main/java/.../service/RunTrackingService.kt` implemented with FusedLocationProviderClient skeleton, start/pause/resume/stop actions, haversine-based distance calc, and DB updates.
-  - UI: `app/src/main/java/.../ui/run/RunScreen.kt` updated to request `ACCESS_FINE_LOCATION` and start/stop the run service.
+- [DONE] Implement `RunTrackingService` (foreground location) completion. (2026-04-09)
+  - Files: `app/src/main/java/.../service/RunTrackingService.kt` now uses `LocationProvider`, handles start/pause/resume/stop, tracks active elapsed time across pauses, filters jitter/improbable jumps, and persists updates through `RunRepository.addLocationPoint(...)`.
+  - UI: `app/src/main/java/.../ui/run/RunScreen.kt` remains wired to request `ACCESS_FINE_LOCATION` and start/stop the run service.
   - [DONE] Implemented `RunMapView.kt` (OSMdroid) and switched polyline storage to encoded polyline. (2026-04-07)
     - Files added/modified:
       - `app/src/main/java/com/example/productivityapp/util/PolylineUtils.kt` — encode/decode polyline (Google polyline algorithm).
       - `app/src/main/java/com/example/productivityapp/ui/run/RunMapView.kt` — OSMdroid MapView composable wrapper that decodes encoded polyline and draws a Polyline overlay.
       - `app/src/main/java/com/example/productivityapp/service/RunTrackingService.kt` — now accumulates in-memory points and writes encoded polyline to `RunEntity.polyline` on updates.
       - `app/src/main/java/com/example/productivityapp/ui/run/RunScreen.kt` — embeds `RunMapView` to show latest run polyline (live updates).
-    - Notes: CSV-style point storage replaced with encoded polyline for compactness and direct map rendering. Consider migration helper if older CSV runs exist.
+    - Notes: CSV-style point storage replaced with encoded polyline for compactness and direct map rendering. Runtime migration helper and `run_points` compatibility table added (2026-04-09).
 
 Service implementation notes & suggestions (implemented 2026-04-07)
 
@@ -372,7 +372,30 @@ SECTION 9 — How to update this plan programmatically
    - Why: UI polish will make demos/test flows reliable and reduce follow-up UX fixes.
    - Acceptance: see section "Polished UI for every window — current state" above.
 
- - [IN-PROGRESS] Finish Run tracker service (RunTrackingService): ensure location accuracy, background behaviour, and encoded polyline persistence + migration helper for old CSV runs.
+ - [DONE] Finish Run tracker service (RunTrackingService): ensure location accuracy, background behaviour, and encoded polyline persistence + migration helper for old CSV runs. (2026-04-09)
+  - [DONE] Finish Run tracker service (RunTrackingService) — core implementation (2026-04-09)
+    - Files changed/added:
+      - `app/src/main/java/com/example/productivityapp/service/RunTrackingService.kt` — completed handleLocation heuristics, uses LocationProvider abstraction, persists points via RunRepository.addLocationPoint, updates distance/duration/speed.
+      - `app/src/main/java/com/example/productivityapp/service/LocationProvider.kt` — new abstraction and `FusedLocationProviderWrapper` for easier mocking in tests.
+      - `app/src/main/java/com/example/productivityapp/data/repository/RunRepository.kt` — added `addLocationPoint(runId, lat, lon, tsMs)` to API.
+      - `app/src/main/java/com/example/productivityapp/data/repository/impl/RoomRunRepository.kt` — implemented `addLocationPoint`, appends new points atomically, persists `run_points`, and migrates CSV-style polylines to encoded polyline.
+      - `app/src/main/java/com/example/productivityapp/data/entities/RunPointEntity.kt` / `data/dao/RunPointDao.kt` / `data/AppDatabase.kt` / `data/DatabaseProvider.kt` — added `run_points` table, indexes, Room migration (v1→v2), and runtime polyline backfill helper.
+      - `app/src/main/java/com/example/productivityapp/run/RunReplayHelper.kt` — added replay decoding/timeline helper for OSMdroid playback and test scaffolding.
+    - Behavior & acceptance:
+      - Start/Pause/Resume/Stop actions implemented and foreground notification maintained.
+      - Pause/resume now preserves active elapsed duration instead of counting paused time.
+      - Location acceptance heuristics: ignore tiny jitter (<0.5m); discard improbable jumps (>50m in <1s unless speed plausible <15 m/s).
+      - Polyline persisted as encoded polyline atomically by `addLocationPoint`; `run_points` stores individual points for efficient replay/history reads.
+      - Legacy CSV-style strings can be converted by the runtime `DatabaseProvider.migratePolylinesIfNeeded(context)` helper.
+    - Tests added:
+      - `app/src/test/java/com/example/productivityapp/data/repository/impl/RunRepositoryAddPointUnitTest.kt` — verifies CSV-style migration, append, encoding, and `run_points` insert.
+      - `app/src/test/java/com/example/productivityapp/service/RunTrackingServiceUnitTest.kt` — verifies lifecycle wiring and location handling using a mock `LocationProvider`.
+      - `app/src/test/java/com/example/productivityapp/run/RunReplayHelperUnitTest.kt` — pure unit test for replay timeline generation and timestamp handling.
+      - `app/src/androidTest/java/com/example/productivityapp/run/RunReplayIntegrationTemplate.kt` — device-test template for OSMdroid replay.
+    - Notes & follow-ups:
+      - [DONE] Wired `DatabaseProvider.migratePolylinesIfNeeded(context)` into a one-time DB bootstrap path via `DatabaseProvider.getInstance(context)` so legacy runs are backfilled automatically. (2026-04-09)
+      - Consider extracting calibration parameters (jitter threshold, jump threshold, max plausible speed) to config for easier tuning.
+      - 2026-04-09 polish: `RunScreen.kt` upgraded with live stats cards, replay slider/playback controls, and `RunMapView` replay marker support. `RunTrackingService` now uses the non-deprecated `stopForeground(STOP_FOREGROUND_REMOVE)` path on newer SDKs.
 
  - [IN-PROGRESS] Finish StepCounterService and add Service lifecycle tests (Robolectric/ServiceTestRule) and permission flows.
 
