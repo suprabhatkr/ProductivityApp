@@ -14,6 +14,11 @@ Table of contents
 - CI recommendations (GitHub Actions snippet)
 - Troubleshooting & common fixes
 
+- Migration: After upgrading the DB schema (v1 -> v2) we add a `run_points` table. A runtime helper
+  `DatabaseProvider.migratePolylinesIfNeeded(context)` is available to populate `run_points` from
+  existing encoded or CSV-style polyline strings. This is now automatically bootstrapped one time from
+  `DatabaseProvider.getInstance(context)`, so legacy runs are backfilled without manual calls.
+
 Running tests locally (JVM unit tests)
 
 Run all JVM unit tests (fast, CI-friendly):
