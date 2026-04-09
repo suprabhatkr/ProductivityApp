@@ -310,6 +310,12 @@ Unit tests
     - Note: Robolectric emitted a manifest warning during the test run; tests still passed. To silence, annotate tests with `@Config(manifest = Config.NONE)` or provide a test manifest.
   - Next: add these tests to CI and ensure KSP-generated sources are available to the test classpath on CI (validate `build/generated/ksp/debugUnitTest` presence).
 
+  - [DONE] Add DataStore unit test (JVM) using temporary directory (2026-04-09)
+    - File added: `app/src/test/java/com/example/productivityapp/datastore/DataStoreUnitTest.kt`
+    - Purpose: validate Preferences DataStore increment/observe behavior and `profile_version` bump emission using a temporary file and `kotlinx-coroutines-test`.
+    - Local verification: `./gradlew :app:testDebugUnitTest` completed successfully (2026-04-09).
+    - CI: add `./gradlew :app:testDebugUnitTest --no-daemon --console=plain` to your CI jobs to run JVM tests without an emulator.
+
 Quick test commands
 - Run unit tests (JVM):
   ./gradlew :app:testDebugUnitTest
@@ -383,7 +389,9 @@ SECTION 9 — How to update this plan programmatically
  - 2026-04-07: Unit tests (Robolectric/JVM) for repositories added and local test run successful. (DONE)
  - 2026-04-07: Service skeletons for StepCounterService and RunTrackingService implemented; service tests are in progress. (IN-PROGRESS)
 
- - Note: This file was updated to explicitly track "polished UI for every window" as part of the short-term priorities so the next session can pick this up easily.
+   - 2026-04-09: ISSUE #2 — UserProfile observe/update bug fixed: `UserDataStore.updateUserProfile` now suspends, writes encrypted prefs and touches a DataStore profile_version key so `observeUserProfile()` emits reliably. (DONE)
+
+   - Note: This file was updated to explicitly track "polished UI for every window" as part of the short-term priorities so the next session can pick this up easily.
 
 -----------------------------------------------------------------
 Contact / notes
