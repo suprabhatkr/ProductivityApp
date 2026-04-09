@@ -4,7 +4,6 @@ import android.content.Context
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
-import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStoreFile
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.core.DataStore
@@ -15,8 +14,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.runBlocking
-import java.util.concurrent.Executors
+
+import kotlinx.coroutines.withContext
 
 /**
  * Simple wrapper: encrypted SharedPreferences for sensitive user profile fields; Preferences DataStore
@@ -54,7 +53,7 @@ class UserDataStore(private val context: Context) {
     private val PROFILE_UNITS_KEY = "profile_units"
     private val PROFILE_STEP_GOAL_KEY = "profile_step_goal"
     private val PROFILE_WATER_GOAL_KEY = "profile_water_goal"
-
+    private val PROFILE_VERSION = intPreferencesKey("profile_version")
     fun observeWaterForDate(date: String): Flow<Int> {
         val key = waterKeyForDate(date)
         return dataStore.data.map { prefs -> prefs[key] ?: 0 }
@@ -97,23 +96,33 @@ class UserDataStore(private val context: Context) {
         )
     }
 
-    fun updateUserProfile(profile: UserProfile) {
-        // Write to EncryptedSharedPreferences synchronously because callers may expect immediate persistence.
-        val editor = securePrefs.edit()
-        profile.displayName?.let { editor.putString(PROFILE_NAME_KEY, it) }
-        profile.weightKg?.let { editor.putString(PROFILE_WEIGHT_KEY, it.toString()) }
-        profile.heightCm.takeIf { it != null }?.let { editor.putInt(PROFILE_HEIGHT_KEY, it!!) }
-        editor.putString(PROFILE_STRIDE_KEY, profile.strideLengthMeters.toString())
-        editor.putString(PROFILE_UNITS_KEY, profile.preferredUnits)
-        editor.putInt(PROFILE_STEP_GOAL_KEY, profile.dailyStepGoal)
-        editor.putInt(PROFILE_WATER_GOAL_KEY, profile.dailyWaterGoalMl)
-        editor.apply()
+    suspend fun updateUserProfile(profile: UserProfile) {
+        // Write to EncryptedSharedPreferences and then bump a DataStore preference
+        // so that `observeUserProfile()` (which maps `dataStore.data`) emits updated values.
+        // Use withContext(Dispatchers.IO) to perform blocking file I/O off the main thread.
+        withContext(Dispatchers.IO) {
+            val editor = securePrefs.edit()
+            profile.displayName?.let { editor.putString(PROFILE_NAME_KEY, it) }
+            profile.weightKg?.let { editor.putString(PROFILE_WEIGHT_KEY, it.toString()) }
+            profile.heightCm?.let { editor.putInt(PROFILE_HEIGHT_KEY, it) }
+            editor.putString(PROFILE_STRIDE_KEY, profile.strideLengthMeters.toString())
+            editor.putString(PROFILE_UNITS_KEY, profile.preferredUnits)
+            editor.putInt(PROFILE_STEP_GOAL_KEY, profile.dailyStepGoal)
+            editor.putInt(PROFILE_WATER_GOAL_KEY, profile.dailyWaterGoalMl)
+            // commit() is synchronous and returns boolean; prefer to ensure data persisted before emitting
+            editor.commit()
+
+            // Touch DataStore to force emission so observers read updated securePrefs values
+            dataStore.edit { prefs ->
+                val current = prefs[PROFILE_VERSION] ?: 0
+                prefs[PROFILE_VERSION] = current + 1
+            }
+        }
     }
 
     // Convenience blocking read (use sparingly)
-    fun getUserProfileBlocking(): UserProfile = runBlocking {
-        observeUserProfile().map { it }.let { flow -> flow }
-        // Simple synchronous read from secure prefs
+    fun getUserProfileBlocking(): UserProfile {
+        // Direct synchronous read from secure prefs (convenience helper)
         val name = securePrefs.getString(PROFILE_NAME_KEY, null)
         val weight = securePrefs.getString(PROFILE_WEIGHT_KEY, null)?.toDoubleOrNull()
         val height = securePrefs.getInt(PROFILE_HEIGHT_KEY, -1).let { if (it <= 0) null else it }
@@ -121,7 +130,7 @@ class UserDataStore(private val context: Context) {
         val units = securePrefs.getString(PROFILE_UNITS_KEY, "metric") ?: "metric"
         val stepGoal = securePrefs.getInt(PROFILE_STEP_GOAL_KEY, 10000)
         val waterGoal = securePrefs.getInt(PROFILE_WATER_GOAL_KEY, 2000)
-        UserProfile(
+        return UserProfile(
             displayName = name,
             weightKg = weight,
             heightCm = height,
