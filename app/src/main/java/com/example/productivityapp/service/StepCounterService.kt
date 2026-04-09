@@ -6,12 +6,14 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.os.Build
 import android.os.IBinder
+import androidx.annotation.VisibleForTesting
 import androidx.core.app.NotificationCompat
 import android.app.Service
 import com.example.productivityapp.data.RepositoryProvider
@@ -34,13 +36,25 @@ class StepCounterService : Service(), SensorEventListener {
         private const val CHANNEL_ID = "steps_service_channel"
         private const val NOTIF_ID = 1001
         private const val PREFS = "step_service_prefs"
-        private const val KEY_BASELINE = "baseline"
+        private const val KEY_LAST_TOTAL = "last_total"
+        private const val KEY_ACTIVE_DATE = "active_date"
+        private const val KEY_PENDING_STEPS = "pending_steps"
+        private const val KEY_LAST_FLUSH_MS = "last_flush_ms"
+        private const val FLUSH_STEP_THRESHOLD = 10
+        private const val FLUSH_INTERVAL_MS = 5_000L
     }
 
     private lateinit var sensorManager: SensorManager
     private var stepSensor: Sensor? = null
     private var serviceScope = CoroutineScope(Dispatchers.Default + Job())
     private val dateFormatter = DateTimeFormatter.ISO_LOCAL_DATE
+    @Volatile private var registrationActive = false
+
+    @VisibleForTesting
+    internal var currentDateProvider: () -> String = { LocalDate.now().format(dateFormatter) }
+
+    @VisibleForTesting
+    internal var hasStepSensorOverride: Boolean? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -51,37 +65,63 @@ class StepCounterService : Service(), SensorEventListener {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
-            ACTION_START -> startForegroundServiceWithNotification()
+            ACTION_START -> return startForegroundServiceWithNotification()
             ACTION_STOP -> stopServiceAndCleanup()
-            else -> startForegroundServiceWithNotification()
+            else -> return startForegroundServiceWithNotification()
         }
         return START_STICKY
     }
 
-    private fun startForegroundServiceWithNotification() {
-        val notification = buildNotification("Step counter running")
+    private fun startForegroundServiceWithNotification(): Int {
+        val sensorAvailable = hasUsableStepSensor()
+        val notification = buildNotification(
+            if (sensorAvailable) "Step counter running" else "Step sensor unavailable — use manual entry"
+        )
         startForeground(NOTIF_ID, notification)
-        stepSensor?.also { sensor ->
-            sensorManager.registerListener(this, sensor, SensorManager.SENSOR_DELAY_NORMAL)
+
+        if (!sensorAvailable) {
+            registrationActive = false
+            return START_NOT_STICKY
         }
+
+        try {
+            stepSensor?.also { sensor ->
+                registrationActive = sensorManager.registerListener(this, sensor, SensorManager.SENSOR_DELAY_NORMAL)
+            }
+        } catch (security: SecurityException) {
+            registrationActive = false
+            startForeground(NOTIF_ID, buildNotification("Activity recognition permission required"))
+            return START_NOT_STICKY
+        }
+
+        return START_STICKY
     }
 
     private fun stopServiceAndCleanup() {
+        flushPendingSteps()
         try {
             sensorManager.unregisterListener(this)
         } catch (t: Throwable) {
             // ignore
         }
-        stopForeground(true)
+        registrationActive = false
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+        } else {
+            @Suppress("DEPRECATION")
+            stopForeground(true)
+        }
         stopSelf()
     }
 
     override fun onDestroy() {
+        flushPendingSteps()
         super.onDestroy()
         try {
             sensorManager.unregisterListener(this)
         } catch (t: Throwable) {
         }
+        registrationActive = false
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -90,33 +130,7 @@ class StepCounterService : Service(), SensorEventListener {
         if (event == null) return
         if (event.sensor.type != Sensor.TYPE_STEP_COUNTER) return
 
-        // event.values[0] is the total steps since last reboot (float)
-        val totalSinceBoot = event.values[0].toLong()
-        val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        val baseline = prefs.getLong(KEY_BASELINE, -1L)
-
-        if (baseline < 0L) {
-            // first reading after service start — set baseline
-            prefs.edit().putLong(KEY_BASELINE, totalSinceBoot).apply()
-            return
-        }
-
-        val delta = (totalSinceBoot - baseline).toInt()
-        if (delta <= 0) return
-
-        // update baseline to current so we won't double-count next event
-        prefs.edit().putLong(KEY_BASELINE, totalSinceBoot).apply()
-
-        // forward to repository on background coroutine
-        serviceScope.launch {
-            try {
-                val repo = RepositoryProvider.provideStepRepository(applicationContext)
-                val today = LocalDate.now().format(dateFormatter)
-                repo.incrementSteps(today, delta, "sensor")
-            } catch (t: Throwable) {
-                // swallow — service should be resilient
-            }
-        }
+        handleStepCounterReading(event.values[0].toLong())
     }
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
@@ -150,4 +164,89 @@ class StepCounterService : Service(), SensorEventListener {
             .addAction(android.R.drawable.ic_delete, "Stop", stopPending)
             .build()
     }
+
+    @VisibleForTesting
+    internal fun buildNotificationForTest(text: String): Notification = buildNotification(text)
+
+    @VisibleForTesting
+    internal fun isRegistrationActiveForTest(): Boolean = registrationActive
+
+    @VisibleForTesting
+    internal fun handleStepCounterReading(totalSinceBoot: Long) {
+        val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val today = currentDateProvider()
+        val storedDate = prefs.getString(KEY_ACTIVE_DATE, null)
+        val lastTotal = prefs.getLong(KEY_LAST_TOTAL, -1L)
+
+        if (storedDate == null || lastTotal < 0L) {
+            prefs.edit()
+                .putString(KEY_ACTIVE_DATE, today)
+                .putLong(KEY_LAST_TOTAL, totalSinceBoot)
+                .putInt(KEY_PENDING_STEPS, 0)
+                .apply()
+            return
+        }
+
+        if (storedDate != today) {
+            val rolloverDelta = (totalSinceBoot - lastTotal).coerceAtLeast(0L).toInt()
+            prefs.edit()
+                .putString(KEY_ACTIVE_DATE, today)
+                .putLong(KEY_LAST_TOTAL, totalSinceBoot)
+                .putInt(KEY_PENDING_STEPS, rolloverDelta)
+                .apply()
+            maybeFlushPendingSteps(today, prefs)
+            return
+        }
+
+        val delta = (totalSinceBoot - lastTotal).coerceAtLeast(0L).toInt()
+        if (delta <= 0) return
+
+        val pending = prefs.getInt(KEY_PENDING_STEPS, 0) + delta
+        prefs.edit()
+            .putLong(KEY_LAST_TOTAL, totalSinceBoot)
+            .putInt(KEY_PENDING_STEPS, pending)
+            .apply()
+
+        maybeFlushPendingSteps(today, prefs)
+    }
+
+    private fun maybeFlushPendingSteps(today: String, prefs: SharedPreferences) {
+        val pending = prefs.getInt(KEY_PENDING_STEPS, 0)
+        val now = System.currentTimeMillis()
+        val lastFlush = prefs.getLong(KEY_LAST_FLUSH_MS, 0L)
+        if (pending > 0 && lastFlush == 0L) {
+            prefs.edit().putLong(KEY_LAST_FLUSH_MS, now).apply()
+            if (pending < FLUSH_STEP_THRESHOLD) return
+        }
+        val shouldFlush = pending >= FLUSH_STEP_THRESHOLD || (pending > 0 && now - lastFlush >= FLUSH_INTERVAL_MS)
+        if (!shouldFlush) return
+
+        prefs.edit().putInt(KEY_PENDING_STEPS, 0).putLong(KEY_LAST_FLUSH_MS, now).apply()
+        serviceScope.launch {
+            try {
+                val repo = RepositoryProvider.provideStepRepository(applicationContext)
+                repo.incrementSteps(today, pending, "sensor")
+            } catch (_: Throwable) {
+                // keep the service resilient; pending already dropped intentionally to avoid replay storms
+            }
+        }
+    }
+
+    private fun flushPendingSteps() {
+        val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val pending = prefs.getInt(KEY_PENDING_STEPS, 0)
+        if (pending <= 0) return
+
+        val today = prefs.getString(KEY_ACTIVE_DATE, currentDateProvider()) ?: currentDateProvider()
+        prefs.edit().putInt(KEY_PENDING_STEPS, 0).putLong(KEY_LAST_FLUSH_MS, System.currentTimeMillis()).apply()
+        serviceScope.launch {
+            try {
+                val repo = RepositoryProvider.provideStepRepository(applicationContext)
+                repo.incrementSteps(today, pending, "sensor")
+            } catch (_: Throwable) {
+            }
+        }
+    }
+
+    private fun hasUsableStepSensor(): Boolean = hasStepSensorOverride ?: (stepSensor != null)
 }

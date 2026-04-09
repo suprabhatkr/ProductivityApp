@@ -3,6 +3,7 @@ package com.example.productivityapp.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.productivityapp.data.repository.StepRepository
+import com.example.productivityapp.data.repository.UserProfileRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
@@ -10,12 +11,21 @@ import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
-class StepViewModel(private val repo: StepRepository) : ViewModel() {
+class StepViewModel(
+    private val repo: StepRepository,
+    private val userProfileRepository: UserProfileRepository,
+) : ViewModel() {
     private val _steps = MutableStateFlow(0)
     val steps: StateFlow<Int> = _steps
 
     private val _distanceMeters = MutableStateFlow(0.0)
     val distanceMeters: StateFlow<Double> = _distanceMeters
+
+    private val _dailyGoal = MutableStateFlow(10000)
+    val dailyGoal: StateFlow<Int> = _dailyGoal
+
+    private val _serviceRunning = MutableStateFlow(false)
+    val serviceRunning: StateFlow<Boolean> = _serviceRunning
 
     init {
         val today = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
@@ -30,6 +40,11 @@ class StepViewModel(private val repo: StepRepository) : ViewModel() {
                 }
             }
         }
+        viewModelScope.launch {
+            userProfileRepository.observeUserProfile().collectLatest { profile ->
+                _dailyGoal.value = profile.dailyStepGoal
+            }
+        }
     }
 
     fun addManualSteps(delta: Int) {
@@ -38,13 +53,20 @@ class StepViewModel(private val repo: StepRepository) : ViewModel() {
             repo.incrementSteps(today, delta, "manual")
         }
     }
+
+    fun setServiceRunning(running: Boolean) {
+        _serviceRunning.value = running
+    }
 }
 
-class StepViewModelFactory(private val repo: StepRepository) : androidx.lifecycle.ViewModelProvider.Factory {
+class StepViewModelFactory(
+    private val repo: StepRepository,
+    private val userProfileRepository: UserProfileRepository,
+) : androidx.lifecycle.ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(StepViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return StepViewModel(repo) as T
+            return StepViewModel(repo, userProfileRepository) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }

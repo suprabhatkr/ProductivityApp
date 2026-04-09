@@ -1,106 +1,223 @@
 package com.example.productivityapp.ui.steps
 
+import android.Manifest
+import android.content.Context
+import android.content.Intent
+import android.hardware.Sensor
+import android.hardware.SensorManager
+import android.net.Uri
+import android.provider.Settings
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.Text
+import androidx.compose.material3.Card
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.productivityapp.data.RepositoryProvider
-import com.example.productivityapp.viewmodel.StepViewModelFactory
 import com.example.productivityapp.service.StepCounterService
-import android.content.Intent
-import android.Manifest
-import android.provider.Settings
-import android.net.Uri
-import com.google.accompanist.permissions.rememberPermissionState
-import com.google.accompanist.permissions.PermissionStatus
+import com.example.productivityapp.viewmodel.StepViewModelFactory
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.Text
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.height
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.ui.unit.dp
+import com.google.accompanist.permissions.PermissionStatus
+import com.google.accompanist.permissions.rememberPermissionState
+
+enum class StepPermissionUiState {
+    Granted,
+    RationaleRequired,
+    RequestOrSettings,
+}
 
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
 fun StepScreen() {
     val context = LocalContext.current
     val repo = RepositoryProvider.provideStepRepository(context)
-    val vm: com.example.productivityapp.viewmodel.StepViewModel = viewModel(factory = StepViewModelFactory(repo))
+    val userProfileRepo = RepositoryProvider.provideUserProfileRepository(context)
+    val vm: com.example.productivityapp.viewmodel.StepViewModel = viewModel(
+        factory = StepViewModelFactory(repo, userProfileRepo)
+    )
     val steps = vm.steps.collectAsState()
-
-    var running by remember { mutableStateOf(false) }
+    val dailyGoal = vm.dailyGoal.collectAsState()
+    val serviceRunning = vm.serviceRunning.collectAsState()
     val permissionState = rememberPermissionState(Manifest.permission.ACTIVITY_RECOGNITION)
+    val sensorManager = remember(context) { context.getSystemService(Context.SENSOR_SERVICE) as SensorManager }
+    val hasStepSensor = remember(sensorManager) { sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER) != null }
+
+    val permissionUiState = when (val status = permissionState.status) {
+        is PermissionStatus.Granted -> StepPermissionUiState.Granted
+        is PermissionStatus.Denied -> if (status.shouldShowRationale) {
+            StepPermissionUiState.RationaleRequired
+        } else {
+            StepPermissionUiState.RequestOrSettings
+        }
+    }
+
+    StepScreenContent(
+        steps = steps.value,
+        dailyGoal = dailyGoal.value,
+        serviceRunning = serviceRunning.value,
+        permissionUiState = permissionUiState,
+        hasStepSensor = hasStepSensor,
+        onAddManualSteps = { vm.addManualSteps(it) },
+        onStartService = {
+            val intent = Intent(context, StepCounterService::class.java).apply { action = StepCounterService.ACTION_START }
+            context.startForegroundService(intent)
+            vm.setServiceRunning(true)
+        },
+        onStopService = {
+            val intent = Intent(context, StepCounterService::class.java).apply { action = StepCounterService.ACTION_STOP }
+            context.startService(intent)
+            vm.setServiceRunning(false)
+        },
+        onRequestPermission = { permissionState.launchPermissionRequest() },
+        onOpenSettings = {
+            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null))
+            context.startActivity(intent)
+        },
+    )
+}
+
+@Composable
+fun StepScreenContent(
+    steps: Int,
+    dailyGoal: Int,
+    serviceRunning: Boolean,
+    permissionUiState: StepPermissionUiState,
+    hasStepSensor: Boolean,
+    onAddManualSteps: (Int) -> Unit,
+    onStartService: () -> Unit,
+    onStopService: () -> Unit,
+    onRequestPermission: () -> Unit,
+    onOpenSettings: () -> Unit,
+) {
+    var customManualSteps by remember { mutableStateOf("") }
+    val goalProgress = if (dailyGoal > 0) (steps.toFloat() / dailyGoal.toFloat()).coerceIn(0f, 1f) else 0f
 
     Surface(modifier = Modifier.fillMaxSize()) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text("Steps")
-            Text("Today: ${steps.value}")
-            Button(onClick = { vm.addManualSteps(100) }, modifier = Modifier.padding(top = 8.dp)) {
-                Text("Add 100 steps (manual)")
+        Column(
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxSize(),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Text("Steps", style = MaterialTheme.typography.headlineMedium)
+            Text("Today: $steps", style = MaterialTheme.typography.titleLarge)
+
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Daily goal", style = MaterialTheme.typography.titleMedium)
+                    LinearProgressIndicator(progress = { goalProgress }, modifier = Modifier.fillMaxWidth())
+                    Text(
+                        "$steps / $dailyGoal steps · ${(goalProgress * 100).toInt()}%",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
             }
 
-            when (val status = permissionState.status) {
-                is PermissionStatus.Granted -> {
-                    Button(onClick = {
-                        val intent = Intent(context, StepCounterService::class.java)
-                        if (!running) {
-                            intent.action = StepCounterService.ACTION_START
-                            context.startForegroundService(intent)
-                            running = true
-                        } else {
-                            intent.action = StepCounterService.ACTION_STOP
-                            context.startService(intent)
-                            running = false
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("Manual entry", style = MaterialTheme.typography.titleMedium)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = { onAddManualSteps(100) }, modifier = Modifier.semantics { testTag = "quick_add_100" }) {
+                            Text("+100")
                         }
-                    }, modifier = Modifier.padding(top = 8.dp)) {
-                        Text(if (!running) "Start Step Service" else "Stop Step Service")
+                        OutlinedButton(onClick = { onAddManualSteps(500) }, modifier = Modifier.semantics { testTag = "quick_add_500" }) {
+                            Text("+500")
+                        }
+                    }
+                    OutlinedTextField(
+                        value = customManualSteps,
+                        onValueChange = { value -> customManualSteps = value.filter { it.isDigit() }.take(5) },
+                        label = { Text("Custom steps") },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .semantics { testTag = "custom_step_input" },
+                    )
+                    Button(
+                        onClick = {
+                            customManualSteps.toIntOrNull()?.takeIf { it > 0 }?.let(onAddManualSteps)
+                            customManualSteps = ""
+                        },
+                        modifier = Modifier.semantics { testTag = "custom_step_submit" },
+                    ) {
+                        Text("Add custom steps")
                     }
                 }
-                is PermissionStatus.Denied -> {
-                    // show rationale if needed
-                    if (status.shouldShowRationale) {
+            }
+
+            if (!hasStepSensor) {
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Automatic step tracking unavailable", style = MaterialTheme.typography.titleMedium)
+                        Text("This device does not provide a hardware step counter sensor. You can still log steps manually.")
+                    }
+                }
+            } else {
+                when (permissionUiState) {
+                    StepPermissionUiState.Granted -> {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(
+                                onClick = if (serviceRunning) onStopService else onStartService,
+                                modifier = Modifier.semantics { testTag = "step_service_toggle" },
+                            ) {
+                                Text(if (!serviceRunning) "Start Step Service" else "Stop Step Service")
+                            }
+                        }
+                    }
+
+                    StepPermissionUiState.RationaleRequired -> {
                         AlertDialog(
                             onDismissRequest = {},
                             confirmButton = {
-                                TextButton(onClick = { permissionState.launchPermissionRequest() }) {
+                                TextButton(onClick = onRequestPermission) {
                                     Text("Allow")
                                 }
                             },
                             dismissButton = {
-                                TextButton(onClick = { /* do nothing */ }) {
-                                    Text("Cancel")
+                                TextButton(onClick = {}) {
+                                    Text("Use manual entry")
                                 }
                             },
                             title = { Text("Activity recognition") },
-                            text = { Text("This app needs activity recognition to count your steps automatically. Please grant the permission.") }
+                            text = { Text("This app needs activity recognition to count your steps automatically. You can continue using manual entry if you prefer.") },
                         )
-                    } else {
-                        // permanently denied or first time — offer request or open settings
-                        Column {
-                            Button(onClick = { permissionState.launchPermissionRequest() }, modifier = Modifier.padding(top = 8.dp)) {
-                                Text("Grant Activity Recognition")
-                            }
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Button(onClick = {
-                                // open app settings
-                                val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null))
-                                context.startActivity(intent)
-                            }) {
-                                Text("Open app settings")
+                    }
+
+                    StepPermissionUiState.RequestOrSettings -> {
+                        Card(modifier = Modifier.fillMaxWidth()) {
+                            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text("Automatic tracking permission", style = MaterialTheme.typography.titleMedium)
+                                Text("Grant activity recognition to count steps automatically, or continue with manual entry.")
+                                Button(onClick = onRequestPermission, modifier = Modifier.semantics { testTag = "request_permission_button" }) {
+                                    Text("Grant Activity Recognition")
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
+                                OutlinedButton(onClick = onOpenSettings, modifier = Modifier.semantics { testTag = "open_settings_button" }) {
+                                    Text("Open app settings")
+                                }
                             }
                         }
                     }

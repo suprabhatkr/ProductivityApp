@@ -7,6 +7,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -27,10 +28,15 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun HomeScreen(
     onNavigateToWater: () -> Unit,
+    onNavigateToSettings: () -> Unit,
     waterViewModel: WaterViewModel
 ) {
     val waterData by waterViewModel.todayData.collectAsState()
     val dateStr = LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE, d MMMM"))
+
+    LaunchedEffect(Unit) {
+        waterViewModel.refresh()
+    }
 
     Scaffold(
         topBar = {
@@ -39,6 +45,11 @@ fun HomeScreen(
                     Column {
                         Text("ProductivityApp", fontWeight = FontWeight.SemiBold, fontSize = 20.sp)
                         Text(dateStr, fontSize = 13.sp, color = Color.White.copy(alpha = 0.8f))
+                    }
+                },
+                actions = {
+                    TextButton(onClick = onNavigateToSettings) {
+                        Text("Settings", color = Color.White)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
