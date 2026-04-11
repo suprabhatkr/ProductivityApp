@@ -498,8 +498,9 @@ Migration plan — move away from deprecated `EncryptedSharedPreferences`
 
 - [TODO] Suggested implementation order (future PR slices)
   - PR A: schema + new store + tests, no migration enabled
-  - PR B: migration helper + idempotency tests + fallback reads
-  - PR C: cutover writes/reads to new store, keep legacy backup intact
+  - PR B: (FUTURE) migration helper + idempotency tests + fallback reads
+  - PR C: (CURRENT) cutover writes/reads to new store, keep legacy backup intact
+    - Decision: proceed with PR C now to enable cutover reads/writes with legacy fallback preserved. PR B (migration helper) will be scheduled as a future follow-up to harden idempotency tests and migration-only tooling.
   - PR D: legacy cleanup after one stable release
 
 - [TODO] Slice 1 — secure profile store foundation (first implementation slice)
@@ -731,6 +732,8 @@ SECTION 9 — How to update this plan programmatically
 -----------------------------------------------------------------
  Immediate next actions (priority-ordered)
 
+ - [DECIDED] Current plan: proceed with PR C (cutover writes/reads to new store) now; PR B (migration helper) is deferred as a future plan.
+
  - [IN-PROGRESS] Polish UI across all windows (Home, Water, Steps, Run, Sleep, Settings)
    - Why: UI polish will make demos/test flows reliable and reduce follow-up UX fixes.
    - Acceptance: see section "Polished UI for every window — current state" above.
@@ -801,7 +804,8 @@ SECTION 9 — How to update this plan programmatically
      - 2026-04-11: Added pinned dependency matrix section to `plan.md`, aligned with `libs.versions.toml`, `pinned_versions.md`, and the Gradle wrapper pin. (DONE)
      - 2026-04-11: Added a dedicated migration plan in `plan.md` to move away from deprecated `EncryptedSharedPreferences` using a phased, rollback-safe approach. (DONE)
      - 2026-04-11: Slice 1 secure-profile foundation recovered and validated — handwritten proto shim parser fixed, `:app:compileDebugKotlin` and the full `:app:testDebugUnitTest` suite passed, and current repository wiring remains unchanged. (DONE)
-     - 2026-04-11: Slice 2 secure-profile migration logic implemented in `UserProfileMigrationCoordinator` with staged write/readback verification, idempotency coverage, real temp-file store verification, and no runtime cutover yet. (DONE / next step is Slice 3 gating + fallback wiring)
+      - 2026-04-11: Slice 2 secure-profile migration logic implemented in `UserProfileMigrationCoordinator` with staged write/readback verification, idempotency coverage, real temp-file store verification, and no runtime cutover yet. (DONE / next step is Slice 3 gating + fallback wiring)
+      - 2026-04-11: DECISION — PR C (cutover reads/writes to new secure store) is being prioritized for immediate work. A short-lived branch will be opened for the cutover changes; PR B (migration helper & tooling) is deferred as a follow-up. (DECIDED)
      - 2026-04-11: Migration-only rollout slice completed — `RepositoryProvider` now enables secure-profile migration while keeping read cutover off, `SecureAwareUserProfileRepository` populates the secure store during normal repository access, and compile/JVM tests/assemble all passed. (DONE)
      - 2026-04-11: Secure-read cutover slice completed — `RepositoryProvider` now enables secure-store reads, `SecureAwareUserProfileRepository` serves secure-first profile reads with legacy fallback for incomplete/unreadable secure state, and compile/JVM tests/assemble all passed. (DONE)
 
