@@ -18,6 +18,7 @@ import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Polyline
 import com.example.productivityapp.util.PolylineUtils
+import com.example.productivityapp.ui.theme.RUN_ACCENT_HEX
 
 internal const val RUN_MAP_CONTENT_DESCRIPTION = "Run route map"
 
@@ -82,7 +83,7 @@ internal fun applyRunRouteOverlays(
     val polyline = Polyline(map).apply {
         setPoints(pts)
         outlinePaint.strokeWidth = 10f
-        outlinePaint.color = "#B155E0".toColorInt()
+        outlinePaint.color = RUN_ACCENT_HEX.toColorInt()
         outlinePaint.alpha = 230
         outlinePaint.isAntiAlias = true
     }

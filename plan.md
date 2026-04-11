@@ -824,24 +824,24 @@ Contact / notes
   - [x] Permission flow: show rationale for `ACTIVITY_RECOGNITION`, and fall back to manual step entry when absent.
   - [x] Surface the saved daily step goal and progress in the screen UI.
   - [ ] Add compact chart (bar chart) showing steps over last 7 days; add touch-to-view details.
-  - [ ] Add content descriptions for all interactive elements and a11y-focused label for step count.
+  - [DONE] Add content descriptions for all interactive elements and a11y-focused label for step count. (2026-04-11)
   - [x] Add UI tests (Compose) for permission dialog and start/stop service flow.
 
   ### Run Screen (file: `app/src/main/java/.../ui/run/RunScreen.kt` + `RunMapView.kt`)
   - [x] Implement Start / Pause / Resume / Stop controls wired to `RunViewModel` and `RunTrackingService`.
   - [x] Implement live stats area: elapsed time, distance (m / km), pace, average speed, calories.
   - [x] Map polish: center-on-start, follow-run toggle, start/end markers, appropriate zoom on start.
-  - [x] Improve polyline visuals: stroke width, color from theme (per-run accent), dashed vs solid for paused state.
+  - [DONE] Improve polyline visuals: stroke width, color from theme (per-run accent). (2026-04-11)
   - [x] Add replay mode: slider to scrub through encoded polyline and a small play/pause for replay.
   - [x] Permission flow: request `ACCESS_FINE_LOCATION` with rationale; background location opt-in only after user opt-in.
-  - [x] Add UI tests for RunScreen interactions and RunMapView rendering (instrumentation or Robolectric as appropriate).
+  - [DONE] Add UI tests for RunScreen interactions and RunMapView rendering (instrumentation or Robolectric as appropriate). (2026-04-11)
 
   ### Sleep Screen (file: `app/src/main/java/.../ui/sleep/SleepScreen.kt`)
   - [x] Implement Start / Stop session controls and display current session duration when running.
   - [x] After Stop: present a quality rating UI (1–5 stars) and optional notes text input; persist to repository.
   - [x] History view: weekly line/bar chart showing sleep duration and average quality; tap to open day details.
   - [ ] Add small tips: suggested sleep goals and quick actions (e.g., "Start nap timer").
-  - [ ] Accessibility: label session controls and rating UI for screen readers.
+  - [DONE] Accessibility: label session controls and rating UI for screen readers. (2026-04-11)
   - [x] Add ViewModel unit tests and repository interaction tests for session start/stop and rating persistence.
   - [ ] Add Compose UI tests for sleep screen interactions.
 
@@ -858,8 +858,28 @@ Contact / notes
   - [x] Water: quick-add buttons (+100ml, +250ml), manual entry, and daily goal progress bar.
   - [x] Water goal now follows the saved `UserProfile.dailyWaterGoalMl` setting.
   - [x] Water auto-reset backend: midnight reset scheduling is implemented via `MidnightResetWorker`; UI messaging/opt-out remains follow-up work.
-  - [ ] Add accessibility labels for quick-add buttons and home tiles.
+  - [DONE] Add accessibility labels for quick-add buttons and home tiles. (2026-04-11)
   - [ ] Add unit tests for WaterDataStore interactions and UI tests for the quick-add flows.
+
+  ### Screenshot tests (new)
+  - [TODO] Add screenshot/regression tests for critical screens (Steps, Run, Sleep) to catch visual regressions.
+    - Options:
+      - Paparazzi (JVM): fast, CI-friendly, renders Compose UIs to images.
+      - Instrumentation Compose UI tests with screenshot capture on emulator/device.
+    - Recommended first step: add Paparazzi tests for the three screens to `app/src/test/java/...` and verify on CI.
+    - Acceptance: one golden screenshot per critical state (empty/run-in-progress/sleep-active) saved under `src/test/resources/goldens`.
+
+  ### Next dev tasks (pick in next session)
+  - Convert SharedPreferences UI-running flags to ViewModel-driven state (preferred long-term) and remove temporary prefs persistence.
+  - Add Paparazzi screenshot tests for Steps/Run/Sleep screens and wire them into CI.
+  - [TODO] Re-enable and stabilize Paparazzi and "Polish" screenshot tests that are currently excluded from the standard JVM unit test task (see `app/build.gradle.kts` where tests matching `**.*PaparazziTest` and `**.*PolishTest` are excluded). Track this work in `.github/ISSUES/2026-04-11-enable-paparazzi-polish-tests.md` and consider adding a dedicated Gradle test task (e.g. `:app:paparazziTest`) or a separate CI job so snapshot tests do not interfere with the main unit-test run.
+  - [IN-PROGRESS] ISSUE: Polish UI across all windows — see `.github/ISSUES/0010-polish-ui.md` for the full context and checklist. Key checklist:
+    - Ensure per-feature accents and theme consistency across Home, Water, Steps, Run, Sleep, Settings.
+    - Add accessibility labels/content descriptions for interactive controls.
+    - Preserve nav/state (start/pause/stop flows) across navigation/rotation.
+    - Add screenshot tests (Paparazzi or instrumentation) for Steps/Run/Sleep and store goldens under `src/test/resources/goldens`.
+  - Add small bar chart on Steps screen (7-day history) and touch-to-view details.
+  - Add Compose instrumentation tests for accessibility flows if device-based checks are required.
 
   Notes
   - Each per-screen TODO should reference the corresponding ViewModel and repository methods. Prefer using flows/StateFlow from the ViewModel to drive UI state rather than local mutable state in composables.

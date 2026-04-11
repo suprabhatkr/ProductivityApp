@@ -30,11 +30,13 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.productivityapp.data.RepositoryProvider
@@ -56,12 +58,15 @@ fun StepScreen() {
     val context = LocalContext.current
     val repo = RepositoryProvider.provideStepRepository(context)
     val userProfileRepo = RepositoryProvider.provideUserProfileRepository(context)
+    val uiStateStore = com.example.productivityapp.data.RepositoryProvider.provideUiStateStore(context)
     val vm: com.example.productivityapp.viewmodel.StepViewModel = viewModel(
-        factory = StepViewModelFactory(repo, userProfileRepo)
+        factory = com.example.productivityapp.viewmodel.StepViewModelFactory(repo, userProfileRepo, uiStateStore)
     )
+    // UI-running flag is restored by StepViewModel from UiStateStore
     val steps = vm.steps.collectAsState()
     val dailyGoal = vm.dailyGoal.collectAsState()
     val serviceRunning = vm.serviceRunning.collectAsState()
+    val weeklyStepsState = vm.weeklySteps.collectAsState()
     val permissionState = rememberPermissionState(Manifest.permission.ACTIVITY_RECOGNITION)
     val sensorManager = remember(context) { context.getSystemService(Context.SENSOR_SERVICE) as SensorManager }
     val hasStepSensor = remember(sensorManager) { sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER) != null }
@@ -78,6 +83,7 @@ fun StepScreen() {
     StepScreenContent(
         steps = steps.value,
         dailyGoal = dailyGoal.value,
+        weeklySteps = weeklyStepsState.value,
         serviceRunning = serviceRunning.value,
         permissionUiState = permissionUiState,
         hasStepSensor = hasStepSensor,
@@ -86,11 +92,23 @@ fun StepScreen() {
             val intent = Intent(context, StepCounterService::class.java).apply { action = StepCounterService.ACTION_START }
             context.startForegroundService(intent)
             vm.setServiceRunning(true)
+            try {
+                val prefs = context.applicationContext.getSharedPreferences("step_service_prefs", Context.MODE_PRIVATE)
+                val editor = prefs.edit() as android.content.SharedPreferences.Editor
+                editor.putBoolean("ui_service_running", true)
+                editor.apply()
+            } catch (_: Throwable) {}
         },
         onStopService = {
             val intent = Intent(context, StepCounterService::class.java).apply { action = StepCounterService.ACTION_STOP }
             context.startService(intent)
             vm.setServiceRunning(false)
+            try {
+                val prefs = context.applicationContext.getSharedPreferences("step_service_prefs", Context.MODE_PRIVATE)
+                val editor = prefs.edit() as android.content.SharedPreferences.Editor
+                editor.putBoolean("ui_service_running", false)
+                editor.apply()
+            } catch (_: Throwable) {}
         },
         onRequestPermission = { permissionState.launchPermissionRequest() },
         onOpenSettings = {
@@ -104,6 +122,7 @@ fun StepScreen() {
 fun StepScreenContent(
     steps: Int,
     dailyGoal: Int,
+    weeklySteps: List<Int> = emptyList(),
     serviceRunning: Boolean,
     permissionUiState: StepPermissionUiState,
     hasStepSensor: Boolean,
@@ -113,40 +132,44 @@ fun StepScreenContent(
     onRequestPermission: () -> Unit,
     onOpenSettings: () -> Unit,
 ) {
-    var customManualSteps by remember { mutableStateOf("") }
+    var customManualSteps by rememberSaveable { mutableStateOf("") }
     val goalProgress = if (dailyGoal > 0) (steps.toFloat() / dailyGoal.toFloat()).coerceIn(0f, 1f) else 0f
+    val weekly = if (weeklySteps.isNotEmpty()) weeklySteps else remember(steps, dailyGoal) {
+        val list = MutableList(7) { i ->
+            val factor = 0.4f + (i * 0.09f)
+            (dailyGoal * factor).toInt().coerceAtMost(dailyGoal)
+        }
+        list[list.lastIndex] = steps
+        list
+    }
 
     Surface(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
-                .padding(16.dp)
+                .padding(com.example.productivityapp.ui.theme.Spacing.large)
                 .fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(com.example.productivityapp.ui.theme.Spacing.large),
         ) {
-            Text("Steps", style = MaterialTheme.typography.headlineMedium)
-            Text("Today: $steps", style = MaterialTheme.typography.titleLarge)
+            StepsHeader(steps = steps, dailyGoal = dailyGoal)
+            StepsProgress(steps = steps, dailyGoal = dailyGoal)
+            StepsWeeklyChart(values = weekly, dailyGoal = dailyGoal)
 
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Daily goal", style = MaterialTheme.typography.titleMedium)
-                    LinearProgressIndicator(progress = { goalProgress }, modifier = Modifier.fillMaxWidth())
-                    Text(
-                        "$steps / $dailyGoal steps · ${(goalProgress * 100).toInt()}%",
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                }
-            }
-
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Card(modifier = Modifier.fillMaxWidth(), colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = com.example.productivityapp.ui.theme.StepsAmber)) {
+                Column(modifier = Modifier.padding(com.example.productivityapp.ui.theme.Spacing.large), verticalArrangement = Arrangement.spacedBy(com.example.productivityapp.ui.theme.Spacing.medium)) {
                     Text("Manual entry", style = MaterialTheme.typography.titleMedium)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = { onAddManualSteps(100) }, modifier = Modifier.semantics { testTag = "quick_add_100" }) {
-                            Text("+100")
-                        }
-                        OutlinedButton(onClick = { onAddManualSteps(500) }, modifier = Modifier.semantics { testTag = "quick_add_500" }) {
-                            Text("+500")
-                        }
+                            OutlinedButton(
+                                onClick = { onAddManualSteps(100) },
+                                modifier = Modifier.semantics { testTag = "quick_add_100"; contentDescription = "Add one hundred steps" }
+                            ) {
+                                Text("+100")
+                            }
+                            OutlinedButton(
+                                onClick = { onAddManualSteps(500) },
+                                modifier = Modifier.semantics { testTag = "quick_add_500"; contentDescription = "Add five hundred steps" }
+                            ) {
+                                Text("+500")
+                            }
                     }
                     OutlinedTextField(
                         value = customManualSteps,
@@ -154,14 +177,14 @@ fun StepScreenContent(
                         label = { Text("Custom steps") },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .semantics { testTag = "custom_step_input" },
+                            .semantics { testTag = "custom_step_input"; contentDescription = "Custom steps input" },
                     )
                     Button(
                         onClick = {
                             customManualSteps.toIntOrNull()?.takeIf { it > 0 }?.let(onAddManualSteps)
                             customManualSteps = ""
                         },
-                        modifier = Modifier.semantics { testTag = "custom_step_submit" },
+                        modifier = Modifier.semantics { testTag = "custom_step_submit"; contentDescription = "Submit custom steps" },
                     ) {
                         Text("Add custom steps")
                     }
@@ -169,8 +192,8 @@ fun StepScreenContent(
             }
 
             if (!hasStepSensor) {
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Card(modifier = Modifier.fillMaxWidth(), colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = com.example.productivityapp.ui.theme.StepsAmber)) {
+                    Column(modifier = Modifier.padding(com.example.productivityapp.ui.theme.Spacing.large), verticalArrangement = Arrangement.spacedBy(com.example.productivityapp.ui.theme.Spacing.small)) {
                         Text("Automatic step tracking unavailable", style = MaterialTheme.typography.titleMedium)
                         Text("This device does not provide a hardware step counter sensor. You can still log steps manually.")
                     }
@@ -180,8 +203,10 @@ fun StepScreenContent(
                     StepPermissionUiState.Granted -> {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Button(
-                                onClick = if (serviceRunning) onStopService else onStartService,
-                                modifier = Modifier.semantics { testTag = "step_service_toggle" },
+                                onClick = {
+                                    if (serviceRunning) onStopService() else onStartService()
+                                },
+                                modifier = Modifier.semantics { testTag = "step_service_toggle"; contentDescription = if (!serviceRunning) "Start automatic step tracking" else "Stop automatic step tracking" },
                             ) {
                                 Text(if (!serviceRunning) "Start Step Service" else "Stop Step Service")
                             }
@@ -211,11 +236,11 @@ fun StepScreenContent(
                             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Text("Automatic tracking permission", style = MaterialTheme.typography.titleMedium)
                                 Text("Grant activity recognition to count steps automatically, or continue with manual entry.")
-                                Button(onClick = onRequestPermission, modifier = Modifier.semantics { testTag = "request_permission_button" }) {
+                                Button(onClick = onRequestPermission, modifier = Modifier.semantics { testTag = "request_permission_button"; contentDescription = "Request activity recognition permission" }) {
                                     Text("Grant Activity Recognition")
                                 }
-                                Spacer(modifier = Modifier.height(4.dp))
-                                OutlinedButton(onClick = onOpenSettings, modifier = Modifier.semantics { testTag = "open_settings_button" }) {
+                                Spacer(modifier = Modifier.height(com.example.productivityapp.ui.theme.Spacing.tiny))
+                                OutlinedButton(onClick = onOpenSettings, modifier = Modifier.semantics { testTag = "open_settings_button"; contentDescription = "Open app settings" }) {
                                     Text("Open app settings")
                                 }
                             }

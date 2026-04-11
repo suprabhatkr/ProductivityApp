@@ -33,7 +33,10 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -55,15 +58,20 @@ import kotlin.math.max
 fun RunScreen() {
     val context = LocalContext.current
     val repo = RepositoryProvider.provideRunRepository(context)
-    val vm: com.example.productivityapp.viewmodel.RunViewModel = viewModel(factory = RunViewModelFactory(repo))
+    val uiStateStore = com.example.productivityapp.data.RepositoryProvider.provideUiStateStore(context)
+    val vm: com.example.productivityapp.viewmodel.RunViewModel = viewModel(factory = com.example.productivityapp.viewmodel.RunViewModelFactory(repo, uiStateStore))
     val runs = vm.runs.collectAsState()
     val latest = runs.value.firstOrNull()
 
     val locationPermissionState = rememberPermissionState(Manifest.permission.ACCESS_FINE_LOCATION)
     val backgroundPermissionState = rememberPermissionState(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
-    var running by remember { mutableStateOf(false) }
-    var replayIndex by remember(latest?.id) { mutableIntStateOf(0) }
-    var replayPlaying by remember(latest?.id) { mutableStateOf(false) }
+    // restore running flag so UI toggle survives navigation while service runs
+    val runningState = vm.uiRunning.collectAsState()
+    var running by rememberSaveable { mutableStateOf(runningState.value) }
+    LaunchedEffect(runningState.value) { running = runningState.value }
+    // ui running state is restored by RunViewModel via UiStateStore
+    var replayIndex by rememberSaveable(latest?.id) { mutableStateOf(0) }
+    var replayPlaying by rememberSaveable(latest?.id) { mutableStateOf(false) }
 
     val replayPoints = remember(latest?.polyline) {
         RunReplayHelper.decodeEncodedPolyline(latest?.polyline.orEmpty())
@@ -101,42 +109,47 @@ fun RunScreen() {
                         Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
                             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                    Button(onClick = {
+                                       Button(
+                                        onClick = {
                                         val intent = Intent(context, RunTrackingService::class.java)
                                         if (!running) {
                                             intent.action = RunTrackingService.ACTION_START
                                             context.startForegroundService(intent)
-                                            running = true
+                                            vm.setUiRunning(true)
                                         } else {
                                             intent.action = RunTrackingService.ACTION_STOP
                                             context.startService(intent)
-                                            running = false
+                                            vm.setUiRunning(false)
                                         }
-                                    }) {
+                                        },
+                                              modifier = Modifier.semantics { contentDescription = if (!running) "Start run" else "Stop run" }
+                                    ) {
                                         Text(if (!running) "Start Run" else "Stop Run")
                                     }
 
-                                    if (running) {
-                                        OutlinedButton(onClick = {
-                                            val intent = Intent(context, RunTrackingService::class.java).apply {
-                                                action = RunTrackingService.ACTION_PAUSE
-                                            }
-                                            context.startService(intent)
-                                            running = false
-                                        }) {
-                                            Text("Pause")
+                                        if (running) {
+                                            OutlinedButton(
+                                                onClick = {
+                                                    val intent = Intent(context, RunTrackingService::class.java).apply {
+                                                        action = RunTrackingService.ACTION_PAUSE
+                                                    }
+                                                    context.startService(intent)
+                                                    vm.setUiRunning(false)
+                                                },
+                                                modifier = Modifier.semantics { contentDescription = "Pause run" }
+                                            ) { Text("Pause") }
+                                        } else if (latest?.endTime == null && latest != null) {
+                                            OutlinedButton(
+                                                onClick = {
+                                                    val intent = Intent(context, RunTrackingService::class.java).apply {
+                                                        action = RunTrackingService.ACTION_RESUME
+                                                    }
+                                                    context.startService(intent)
+                                                    vm.setUiRunning(true)
+                                                },
+                                                modifier = Modifier.semantics { contentDescription = "Resume run" }
+                                            ) { Text("Resume") }
                                         }
-                                    } else if (latest?.endTime == null && latest != null) {
-                                        OutlinedButton(onClick = {
-                                            val intent = Intent(context, RunTrackingService::class.java).apply {
-                                                action = RunTrackingService.ACTION_RESUME
-                                            }
-                                            context.startService(intent)
-                                            running = true
-                                        }) {
-                                            Text("Resume")
-                                        }
-                                    }
                                 }
 
                                 when (val bg = backgroundPermissionState.status) {
@@ -158,7 +171,7 @@ fun RunScreen() {
                                             )
                                         } else {
                                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                                OutlinedButton(onClick = { backgroundPermissionState.launchPermissionRequest() }) {
+                                                    OutlinedButton(onClick = { backgroundPermissionState.launchPermissionRequest() }, modifier = Modifier.semantics { contentDescription = "Request background location permission" }) {
                                                     Text("Background access")
                                                 }
                                                 OutlinedButton(onClick = {
@@ -175,7 +188,7 @@ fun RunScreen() {
                         }
                     }
                     else -> {
-                        Button(onClick = { locationPermissionState.launchPermissionRequest() }) {
+                        Button(onClick = { locationPermissionState.launchPermissionRequest() }, modifier = Modifier.semantics { contentDescription = "Request location permission" }) {
                             Text("Grant Location Permission")
                         }
                     }
@@ -209,7 +222,8 @@ fun RunScreen() {
                                         replayPlaying = false
                                         replayIndex = it.toInt().coerceIn(0, max(replayPoints.lastIndex, 0))
                                     },
-                                    valueRange = 0f..max(replayPoints.lastIndex, 0).toFloat()
+                                    valueRange = 0f..max(replayPoints.lastIndex, 0).toFloat(),
+                                    modifier = Modifier.semantics { contentDescription = "Replay position slider" }
                                 )
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
@@ -217,18 +231,24 @@ fun RunScreen() {
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text("Point ${replayIndex + 1} / ${replayPoints.size}")
-                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        OutlinedButton(onClick = {
-                                            replayPlaying = false
-                                            replayIndex = 0
-                                        }) { Text("Reset") }
-                                        Button(onClick = {
-                                            if (replayIndex >= replayPoints.lastIndex) replayIndex = 0
-                                            replayPlaying = !replayPlaying
-                                        }) {
-                                            Text(if (replayPlaying) "Pause Replay" else "Play Replay")
+                                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            OutlinedButton(
+                                                onClick = {
+                                                    replayPlaying = false
+                                                    replayIndex = 0
+                                                },
+                                                modifier = Modifier.semantics { contentDescription = "Reset replay" }
+                                            ) { Text("Reset") }
+                                            Button(
+                                                onClick = {
+                                                    if (replayIndex >= replayPoints.lastIndex) replayIndex = 0
+                                                    replayPlaying = !replayPlaying
+                                                },
+                                                modifier = Modifier.semantics { contentDescription = if (replayPlaying) "Pause replay" else "Play replay" }
+                                            ) {
+                                                Text(if (replayPlaying) "Pause Replay" else "Play Replay")
+                                            }
                                         }
-                                    }
                                 }
                             } else {
                                 Text("Replay will appear once a route has been recorded.")
@@ -245,7 +265,7 @@ fun RunScreen() {
 private fun StatsCard(distanceMeters: Double, durationSec: Long, avgSpeedMps: Double, calories: Double) {
     val distanceKm = distanceMeters / 1000.0
     val paceSecPerKm = if (distanceMeters > 0.0) durationSec / (distanceMeters / 1000.0) else 0.0
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+    Card(colors = CardDefaults.cardColors(containerColor = com.example.productivityapp.ui.theme.RunPurple)) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("Live Stats", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {

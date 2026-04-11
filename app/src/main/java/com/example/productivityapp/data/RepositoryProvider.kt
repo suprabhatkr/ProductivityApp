@@ -63,5 +63,9 @@ object RepositoryProvider {
             ).also { userProfileRepository = it }
         }
     }
+
+    fun provideUiStateStore(context: Context): com.example.productivityapp.data.UiStateStore {
+        return com.example.productivityapp.data.UiStateStore(context.applicationContext)
+    }
 }
 

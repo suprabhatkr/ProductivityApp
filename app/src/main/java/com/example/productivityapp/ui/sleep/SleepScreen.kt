@@ -28,7 +28,10 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
@@ -86,8 +89,8 @@ fun SleepScreenContent(
     onSubmitReview: (Int, String) -> Unit,
     onDismissReview: () -> Unit,
 ) {
-    var quality by remember(pendingReviewSession?.id) { mutableIntStateOf(4) }
-    var notes by remember(pendingReviewSession?.id) { mutableStateOf("") }
+    var quality by rememberSaveable(pendingReviewSession?.id) { mutableStateOf(4) }
+    var notes by rememberSaveable(pendingReviewSession?.id) { mutableStateOf("") }
 
     Surface(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
@@ -101,6 +104,10 @@ fun SleepScreenContent(
                     Text("Sleep Tracker", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
                     Text("Goal: 8 hours", style = MaterialTheme.typography.bodyMedium)
                 }
+            }
+
+            item {
+                SleepTipsCard(onStartNap = onStartSleep)
             }
 
             item {
@@ -143,6 +150,26 @@ fun SleepScreenContent(
     }
 }
 
+
+@Composable
+private fun SleepTipsCard(onStartNap: () -> Unit) {
+    Card(colors = CardDefaults.cardColors(containerColor = com.example.productivityapp.ui.theme.SleepGreen)) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Quick sleep tips", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text("- Dim lights 30 minutes before bed")
+            Text("- Avoid screens and caffeine before sleeping")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = onStartNap, modifier = Modifier.semantics { contentDescription = "Start nap timer" }) {
+                    Text("Start Nap Timer")
+                }
+                OutlinedButton(onClick = {}, modifier = Modifier.semantics { contentDescription = "Learn about sleep tips" }) {
+                    Text("Learn more")
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun ActiveSleepCard(
     activeSession: SleepEntity?,
@@ -153,12 +180,12 @@ private fun ActiveSleepCard(
     onResumeSleep: () -> Unit,
     onStopSleep: () -> Unit,
 ) {
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+    Card(colors = CardDefaults.cardColors(containerColor = com.example.productivityapp.ui.theme.SleepGreen)) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("Session", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             if (activeSession == null) {
                 Text("No active sleep session")
-                Button(onClick = onStartSleep) {
+                Button(onClick = onStartSleep, modifier = Modifier.semantics { contentDescription = "Start sleep session" }) {
                     Text("Start Sleep")
                 }
             } else {
@@ -166,11 +193,11 @@ private fun ActiveSleepCard(
                 Text("Elapsed: ${formatDuration(elapsedSeconds)}", style = MaterialTheme.typography.headlineSmall)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (isPaused) {
-                        OutlinedButton(onClick = onResumeSleep) { Text("Resume") }
+                        OutlinedButton(onClick = onResumeSleep, modifier = Modifier.semantics { contentDescription = "Resume sleep" }) { Text("Resume") }
                     } else {
-                        OutlinedButton(onClick = onPauseSleep) { Text("Pause") }
+                        OutlinedButton(onClick = onPauseSleep, modifier = Modifier.semantics { contentDescription = "Pause sleep" }) { Text("Pause") }
                     }
-                    Button(onClick = onStopSleep) { Text("Stop") }
+                    Button(onClick = onStopSleep, modifier = Modifier.semantics { contentDescription = "Stop sleep" }) { Text("Stop") }
                 }
             }
         }
@@ -179,7 +206,7 @@ private fun ActiveSleepCard(
 
 @Composable
 private fun WeeklySleepChart(weeklySummary: List<SleepDaySummary>) {
-    Card {
+    Card(colors = CardDefaults.cardColors(containerColor = com.example.productivityapp.ui.theme.SleepGreen)) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("Last 7 Days", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             val maxDuration = (weeklySummary.maxOfOrNull { it.totalDurationSec } ?: 1L).coerceAtLeast(1L)
@@ -216,25 +243,27 @@ private fun SleepReviewCard(
     onSave: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
+    Card(colors = CardDefaults.cardColors(containerColor = com.example.productivityapp.ui.theme.SleepGreen)) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("How did you sleep?", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-            (1..5).forEach { rating ->
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    RadioButton(selected = quality == rating, onClick = { onQualitySelected(rating) })
-                    Text("$rating / 5")
+                (1..5).forEach { rating ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(selected = quality == rating, onClick = { onQualitySelected(rating) }, modifier = Modifier.semantics { contentDescription = "Select quality $rating" })
+                        Text("$rating / 5")
+                    }
                 }
-            }
             OutlinedTextField(
                 value = notes,
                 onValueChange = onNotesChanged,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .semantics { contentDescription = "Sleep notes input" },
                 label = { Text("Notes") },
                 minLines = 2,
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = onSave) { Text("Save review") }
-                OutlinedButton(onClick = onDismiss) { Text("Skip") }
+                Button(onClick = onSave, modifier = Modifier.semantics { contentDescription = "Save sleep review" }) { Text("Save review") }
+                OutlinedButton(onClick = onDismiss, modifier = Modifier.semantics { contentDescription = "Skip sleep review" }) { Text("Skip") }
             }
         }
     }

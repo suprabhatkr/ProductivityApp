@@ -16,6 +16,12 @@ interface StepDao {
     @Query("SELECT * FROM steps WHERE date = :date LIMIT 1")
     suspend fun getByDate(date: String): StepEntity?
 
+    @Query("SELECT * FROM steps WHERE date BETWEEN :startDate AND :endDate ORDER BY date ASC")
+    suspend fun getBetweenDates(startDate: String, endDate: String): List<StepEntity>
+
+    @Query("SELECT * FROM steps WHERE date BETWEEN :startDate AND :endDate ORDER BY date ASC")
+    fun observeBetweenDates(startDate: String, endDate: String): kotlinx.coroutines.flow.Flow<List<StepEntity>>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(step: StepEntity): Long
 

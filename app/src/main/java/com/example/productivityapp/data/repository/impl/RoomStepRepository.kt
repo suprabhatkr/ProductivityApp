@@ -41,5 +41,13 @@ class RoomStepRepository(private val dao: StepDao) : StepRepository {
     override suspend fun resetStepsForDate(date: String) {
         dao.deleteByDate(date)
     }
+
+    override suspend fun getStepsForRange(startDate: String, endDate: String): List<StepEntity> {
+        return dao.getBetweenDates(startDate, endDate)
+    }
+
+    override fun observeStepsForRange(startDate: String, endDate: String): kotlinx.coroutines.flow.Flow<List<StepEntity>> {
+        return dao.observeBetweenDates(startDate, endDate)
+    }
 }
 
