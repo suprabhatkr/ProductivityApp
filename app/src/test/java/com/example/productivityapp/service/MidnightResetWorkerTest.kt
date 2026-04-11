@@ -26,6 +26,7 @@ import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
 import java.time.ZonedDateTime
+import kotlinx.coroutines.flow.first
 
 @RunWith(RobolectricTestRunner::class)
 class MidnightResetWorkerTest {
@@ -107,6 +108,10 @@ class MidnightResetWorkerTest {
             .edit()
             .putString("entries_$dateString", "[{\"id\":1,\"amountMl\":250}]")
             .commit()
+        // Also add a DataStore-backed entry so the worker's call to UserDataStore.resetWaterForDate
+        // will clear DataStore data as well.
+        val udsWriter = com.example.productivityapp.datastore.UserDataStore(context)
+        udsWriter.addEntryReturnId(dateString, 250)
         db.stepDao().insert(
             StepEntity(
                 date = dateString,
@@ -124,6 +129,10 @@ class MidnightResetWorkerTest {
             context.getSharedPreferences("water_data_prefs", Context.MODE_PRIVATE)
                 .getString("entries_$dateString", null)
         )
+        // verify DataStore-backed entries cleared
+        val udsReader = com.example.productivityapp.datastore.UserDataStore(context)
+        val entries = udsReader.observeEntriesForDate(dateString).first()
+        assertTrue(entries.isEmpty())
         assertNull(db.stepDao().getByDate(dateString))
     }
 }

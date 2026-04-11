@@ -4,7 +4,10 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.productivityapp.app.data.model.WaterDayData
-import com.example.productivityapp.app.data.repository.WaterRepository
+import com.example.productivityapp.app.data.model.WaterEntry
+import com.example.productivityapp.datastore.UserDataStore
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
@@ -13,33 +16,44 @@ import kotlinx.coroutines.launch
 
 class WaterViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val repository = WaterRepository(application)
+    private val dataStore = UserDataStore(application)
 
-    val todayData: StateFlow<WaterDayData> = repository.getTodayData()
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
-            initialValue = WaterDayData(date = "", goalMl = 2000)
-        )
+    private val _todayData = kotlinx.coroutines.flow.MutableStateFlow(WaterDayData(date = "", goalMl = 2000))
+    val todayData: StateFlow<WaterDayData> = _todayData
+
+    private var observeJob: Job? = null
+
+    private fun startObservingForDate(date: String) {
+        observeJob?.cancel()
+        observeJob = viewModelScope.launch {
+            combine(
+                dataStore.observeEntriesForDate(date),
+                dataStore.observeUserProfile()
+            ) { entries, profile ->
+                WaterDayData(date = date, entries = entries, goalMl = profile.dailyWaterGoalMl)
+            }.collect { _todayData.value = it }
+        }
+    }
 
     init {
-        // Intentionally do not schedule a long-running background job here.
-        // We'll refresh when the UI detects a date change (either on open or via
-        // ACTION_DATE_CHANGED broadcast) so nothing runs while the process is not
-        // active and we avoid potential leaks or long delays in the ViewModel.
+        // Start observing today's date
+        val today = java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
+        startObservingForDate(today)
     }
 
     /** Public refresh entry so UI or other callers can trigger a reload when the date changes. */
     fun refresh() {
-        viewModelScope.launch {
-            repository.refresh()
-        }
+        // Re-evaluate today's observations. Callers may call this when the UI detects
+        // the system date changed while the process was alive.
+        val today = java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
+        startObservingForDate(today)
     }
 
     fun addWater(amountMl: Int) {
         if (amountMl <= 0) return
         viewModelScope.launch {
-            repository.addEntry(amountMl)
+            val today = java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
+            dataStore.addEntryReturnId(today, amountMl)
         }
     }
 
@@ -49,12 +63,14 @@ class WaterViewModel(application: Application) : AndroidViewModel(application) {
      */
     suspend fun addWaterAndGetId(amountMl: Int): Long {
         if (amountMl <= 0) return -1L
-        return repository.addEntryReturnId(amountMl)
+        val today = java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
+        return dataStore.addEntryReturnId(today, amountMl)
     }
 
     fun removeEntry(id: Long) {
         viewModelScope.launch {
-            repository.removeEntry(id)
+            val today = java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
+            dataStore.removeEntry(today, id)
         }
     }
 

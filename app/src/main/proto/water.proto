@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+option java_package = "com.example.productivityapp.datastore.proto";
+option java_multiple_files = true;
+
+message WaterEntryProto {
+  int64 id = 1;
+  int32 amount_ml = 2;
+  int64 timestamp_epoch_ms = 3;
+}
+
+message WaterDayProto {
+  repeated WaterEntryProto entries = 1;
+  int32 total_ml = 2;
+}
+
+message WaterStoreProto {
+  map<string, WaterDayProto> days = 1;
+}
+
