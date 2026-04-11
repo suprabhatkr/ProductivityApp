@@ -9,13 +9,16 @@ import com.example.productivityapp.data.AppDatabase
 import com.example.productivityapp.data.DatabaseProvider
 import kotlinx.coroutines.runBlocking
 import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
-import org.junit.runner.RunWith
 
 @RunWith(RobolectricTestRunner::class)
 class RunTrackingServiceUnitTest {
@@ -25,9 +28,14 @@ class RunTrackingServiceUnitTest {
     class TestLocationProvider : LocationProvider {
         var callback: com.google.android.gms.location.LocationCallback? = null
         var requested = false
+        var requestCount = 0
+        var throwOnRequest = false
+
         override fun requestLocationUpdates(request: com.google.android.gms.location.LocationRequest, callback: com.google.android.gms.location.LocationCallback) {
+            if (throwOnRequest) throw SecurityException("permission denied")
             this.callback = callback
             requested = true
+            requestCount += 1
         }
 
         override fun removeLocationUpdates(callback: com.google.android.gms.location.LocationCallback) {
@@ -63,78 +71,135 @@ class RunTrackingServiceUnitTest {
     }
 
     @Test
-    fun testServiceStartAndLocationHandling() = runBlocking {
+    fun serviceLifecycle_persistsLocationsAndNotificationAction() = runBlocking {
         val controller = Robolectric.buildService(RunTrackingService::class.java).create()
         val service = controller.get()
 
         val provider = TestLocationProvider()
         service.setLocationProvider(provider)
 
+        val notification = service.buildNotificationForTest("Run tracking")
+        assertNotNull(notification)
+        assertEquals(1, notification.actions.size)
+        assertEquals("Stop", notification.actions.first().title)
+
         val intent = Intent(context, RunTrackingService::class.java).apply { action = RunTrackingService.ACTION_START }
-        // call onStartCommand directly; this will create a run record (async) and prepare handler
         service.onStartCommand(intent, 0, 0)
         assertTrue(provider.requested)
+        assertEquals(1, provider.requestCount)
+        waitFor { latestRunId() > 0L }
 
-        // wait for the background insertion to complete (poll up to 2s)
-        var runExists = false
-        val startWait = System.currentTimeMillis()
-        while (System.currentTimeMillis() - startWait < 2000) {
-            val c = db.query(androidx.sqlite.db.SimpleSQLiteQuery("SELECT COUNT(*) FROM runs"))
-            if (c.moveToFirst()) {
-                val cnt = c.getInt(0)
-                c.close()
-                if (cnt > 0) { runExists = true; break }
-            } else {
-                c.close()
-            }
-            Thread.sleep(100)
-        }
-        assertTrue("Run entry should have been created", runExists)
-
-        // simulate a location callback by invoking private handleLocation via reflection
-        val handleMethod = RunTrackingService::class.java.getDeclaredMethod("handleLocation", android.location.Location::class.java)
-        handleMethod.isAccessible = true
         val now = System.currentTimeMillis()
-        val loc = Location("test").apply {
+        service.handleLocationForTest(Location("test").apply {
             latitude = 12.34
             longitude = 56.78
             time = now
-        }
-        handleMethod.invoke(service, loc)
+        })
+        service.handleLocationForTest(Location("test").apply {
+            latitude = 12.3406
+            longitude = 56.7808
+            time = now + 5_000
+        })
 
-        // allow background work to complete
-        Thread.sleep(200)
-
-        // verify that a run was created and has polyline stored
-        val cursor = db.query(androidx.sqlite.db.SimpleSQLiteQuery("SELECT id, polyline FROM runs ORDER BY startTime DESC LIMIT 1"))
-        var found = false
-        if (cursor.moveToFirst()) {
-            val poly = cursor.getString(1)
-            if (!poly.isNullOrBlank()) found = true
-        }
-        cursor.close()
-
-        assertTrue(found)
+        waitFor { latestRunPointCount() >= 2 }
+        assertFalse(latestPolyline().isNullOrBlank())
 
         service.onStartCommand(Intent(context, RunTrackingService::class.java).apply { action = RunTrackingService.ACTION_PAUSE }, 0, 0)
+        assertNull(provider.callback)
+
+        service.onStartCommand(Intent(context, RunTrackingService::class.java).apply { action = RunTrackingService.ACTION_RESUME }, 0, 0)
+        assertEquals(2, provider.requestCount)
+        assertNotNull(provider.callback)
+
+        service.onStartCommand(Intent(context, RunTrackingService::class.java).apply { action = RunTrackingService.ACTION_STOP }, 0, 0)
+        waitFor { latestEndTime() != null }
         assertNull(provider.callback)
     }
 
     @Test
-    fun testServicePausesAndResumesLocationProvider() {
+    fun improbableJump_isIgnoredAndDoesNotPollutePolyline() = runBlocking {
         val controller = Robolectric.buildService(RunTrackingService::class.java).create()
         val service = controller.get()
         val provider = TestLocationProvider()
         service.setLocationProvider(provider)
 
         service.onStartCommand(Intent(context, RunTrackingService::class.java).apply { action = RunTrackingService.ACTION_START }, 0, 0)
-        assertTrue(provider.requested)
+        waitFor { latestRunId() > 0L }
+        val now = System.currentTimeMillis()
+        service.handleLocationForTest(Location("test").apply {
+            latitude = 12.34
+            longitude = 56.78
+            time = now
+        })
+        service.handleLocationForTest(Location("test").apply {
+            latitude = 13.34
+            longitude = 57.78
+            time = now + 500
+        }) // implausible jump > 50m in < 1s
 
-        service.onStartCommand(Intent(context, RunTrackingService::class.java).apply { action = RunTrackingService.ACTION_PAUSE }, 0, 0)
+        waitFor { latestRunPointCount() >= 1 }
+        assertEquals(1, latestRunPointCount())
+    }
+
+    @Test
+    fun permissionDeniedFromLocationProvider_doesNotCrash() {
+        val controller = Robolectric.buildService(RunTrackingService::class.java).create()
+        val service = controller.get()
+        val provider = TestLocationProvider().apply { throwOnRequest = true }
+        service.setLocationProvider(provider)
+
+        service.onStartCommand(Intent(context, RunTrackingService::class.java).apply { action = RunTrackingService.ACTION_START }, 0, 0)
+
+        waitFor { latestRunId() > 0L }
         assertNull(provider.callback)
+        service.onStartCommand(Intent(context, RunTrackingService::class.java).apply { action = RunTrackingService.ACTION_STOP }, 0, 0)
+    }
 
-        service.onStartCommand(Intent(context, RunTrackingService::class.java).apply { action = RunTrackingService.ACTION_RESUME }, 0, 0)
-        assertTrue(provider.requested)
+    private fun latestRunId(): Long {
+        val cursor = db.query(androidx.sqlite.db.SimpleSQLiteQuery("SELECT id FROM runs ORDER BY startTime DESC LIMIT 1"))
+        return try {
+            if (cursor.moveToFirst()) cursor.getLong(0) else -1L
+        } finally {
+            cursor.close()
+        }
+    }
+
+    private fun latestPolyline(): String? {
+        val cursor = db.query(androidx.sqlite.db.SimpleSQLiteQuery("SELECT polyline FROM runs ORDER BY startTime DESC LIMIT 1"))
+        return try {
+            if (cursor.moveToFirst()) cursor.getString(0) else null
+        } finally {
+            cursor.close()
+        }
+    }
+
+    private fun latestEndTime(): Long? {
+        val cursor = db.query(androidx.sqlite.db.SimpleSQLiteQuery("SELECT endTime FROM runs ORDER BY startTime DESC LIMIT 1"))
+        return try {
+            if (cursor.moveToFirst() && !cursor.isNull(0)) cursor.getLong(0) else null
+        } finally {
+            cursor.close()
+        }
+    }
+
+    private fun latestRunPointCount(): Int {
+        val runId = latestRunId()
+        if (runId <= 0L) return 0
+        val cursor = db.query(androidx.sqlite.db.SimpleSQLiteQuery("SELECT COUNT(*) FROM run_points WHERE runId = $runId"))
+        return try {
+            if (cursor.moveToFirst()) cursor.getInt(0) else 0
+        } finally {
+            cursor.close()
+        }
+    }
+
+    private fun waitFor(timeoutMs: Long = 2_000, condition: () -> Boolean) {
+        val start = System.currentTimeMillis()
+        while (System.currentTimeMillis() - start < timeoutMs) {
+            if (condition()) return
+            Thread.sleep(50)
+        }
+        assertTrue("Condition not met within $timeoutMs ms", condition())
     }
 }
 

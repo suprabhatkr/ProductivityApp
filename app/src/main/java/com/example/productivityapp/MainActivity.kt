@@ -11,6 +11,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.productivityapp.data.RepositoryProvider
 import com.example.productivityapp.app.ui.home.HomeScreen as AppHomeScreen
 import com.example.productivityapp.app.ui.water.WaterIntakeScreen as AppWaterScreen
+import com.example.productivityapp.service.MidnightResetWorker
 import com.example.productivityapp.ui.run.RunScreen
 import com.example.productivityapp.ui.sleep.SleepScreen
 import com.example.productivityapp.ui.steps.StepScreen
@@ -24,6 +25,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: android.os.Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        MidnightResetWorker.schedule(applicationContext)
 
         setContent {
             ProductivityAppTheme {

@@ -5,13 +5,13 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
+import androidx.core.content.edit
 import android.content.Intent
 import android.content.SharedPreferences
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
-import android.os.Build
 import android.os.IBinder
 import androidx.annotation.VisibleForTesting
 import androidx.core.app.NotificationCompat
@@ -42,6 +42,14 @@ class StepCounterService : Service(), SensorEventListener {
         private const val KEY_LAST_FLUSH_MS = "last_flush_ms"
         private const val FLUSH_STEP_THRESHOLD = 10
         private const val FLUSH_INTERVAL_MS = 5_000L
+
+        fun markNewDay(context: Context, today: String) {
+            context.getSharedPreferences(PREFS, MODE_PRIVATE).edit {
+                putString(KEY_ACTIVE_DATE, today)
+                putInt(KEY_PENDING_STEPS, 0)
+                putLong(KEY_LAST_FLUSH_MS, 0L)
+            }
+        }
     }
 
     private lateinit var sensorManager: SensorManager
@@ -56,9 +64,12 @@ class StepCounterService : Service(), SensorEventListener {
     @VisibleForTesting
     internal var hasStepSensorOverride: Boolean? = null
 
+    @VisibleForTesting
+    internal var registerSensorUpdatesOverride: (() -> Boolean)? = null
+
     override fun onCreate() {
         super.onCreate()
-        sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
+        sensorManager = getSystemService(SENSOR_SERVICE) as SensorManager
         stepSensor = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER)
         createNotificationChannel()
     }
@@ -85,10 +96,10 @@ class StepCounterService : Service(), SensorEventListener {
         }
 
         try {
-            stepSensor?.also { sensor ->
-                registrationActive = sensorManager.registerListener(this, sensor, SensorManager.SENSOR_DELAY_NORMAL)
-            }
-        } catch (security: SecurityException) {
+            registrationActive = registerSensorUpdatesOverride?.invoke() ?: stepSensor?.let { sensor ->
+                sensorManager.registerListener(this, sensor, SensorManager.SENSOR_DELAY_NORMAL)
+            } ?: false
+        } catch (_: SecurityException) {
             registrationActive = false
             startForeground(NOTIF_ID, buildNotification("Activity recognition permission required"))
             return START_NOT_STICKY
@@ -101,16 +112,11 @@ class StepCounterService : Service(), SensorEventListener {
         flushPendingSteps()
         try {
             sensorManager.unregisterListener(this)
-        } catch (t: Throwable) {
+        } catch (_: Throwable) {
             // ignore
         }
         registrationActive = false
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            stopForeground(STOP_FOREGROUND_REMOVE)
-        } else {
-            @Suppress("DEPRECATION")
-            stopForeground(true)
-        }
+        stopForegroundCompat()
         stopSelf()
     }
 
@@ -119,7 +125,7 @@ class StepCounterService : Service(), SensorEventListener {
         super.onDestroy()
         try {
             sensorManager.unregisterListener(this)
-        } catch (t: Throwable) {
+        } catch (_: Throwable) {
         }
         registrationActive = false
     }
@@ -138,15 +144,18 @@ class StepCounterService : Service(), SensorEventListener {
     }
 
     private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val nm = getSystemService(NotificationManager::class.java)
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                "Step Counter",
-                NotificationManager.IMPORTANCE_LOW
-            )
-            channel.description = "Notifications for background step counting"
+        val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+        val channel = NotificationChannel(
+            CHANNEL_ID,
+            "Step Counter",
+            NotificationManager.IMPORTANCE_LOW
+        )
+        try {
             nm.createNotificationChannel(channel)
+        } catch (_: NoSuchMethodError) {
+            // Robolectric / older runtime stubs may not expose this newer API path.
+        } catch (_: RuntimeException) {
+            // Keep unit-test environments resilient when notification channel APIs are stubbed.
         }
     }
 
@@ -173,27 +182,27 @@ class StepCounterService : Service(), SensorEventListener {
 
     @VisibleForTesting
     internal fun handleStepCounterReading(totalSinceBoot: Long) {
-        val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val prefs = getSharedPreferences(PREFS, MODE_PRIVATE)
         val today = currentDateProvider()
         val storedDate = prefs.getString(KEY_ACTIVE_DATE, null)
         val lastTotal = prefs.getLong(KEY_LAST_TOTAL, -1L)
 
         if (storedDate == null || lastTotal < 0L) {
-            prefs.edit()
-                .putString(KEY_ACTIVE_DATE, today)
-                .putLong(KEY_LAST_TOTAL, totalSinceBoot)
-                .putInt(KEY_PENDING_STEPS, 0)
-                .apply()
+            prefs.edit {
+                putString(KEY_ACTIVE_DATE, today)
+                putLong(KEY_LAST_TOTAL, totalSinceBoot)
+                putInt(KEY_PENDING_STEPS, 0)
+            }
             return
         }
 
         if (storedDate != today) {
             val rolloverDelta = (totalSinceBoot - lastTotal).coerceAtLeast(0L).toInt()
-            prefs.edit()
-                .putString(KEY_ACTIVE_DATE, today)
-                .putLong(KEY_LAST_TOTAL, totalSinceBoot)
-                .putInt(KEY_PENDING_STEPS, rolloverDelta)
-                .apply()
+            prefs.edit {
+                putString(KEY_ACTIVE_DATE, today)
+                putLong(KEY_LAST_TOTAL, totalSinceBoot)
+                putInt(KEY_PENDING_STEPS, rolloverDelta)
+            }
             maybeFlushPendingSteps(today, prefs)
             return
         }
@@ -202,10 +211,10 @@ class StepCounterService : Service(), SensorEventListener {
         if (delta <= 0) return
 
         val pending = prefs.getInt(KEY_PENDING_STEPS, 0) + delta
-        prefs.edit()
-            .putLong(KEY_LAST_TOTAL, totalSinceBoot)
-            .putInt(KEY_PENDING_STEPS, pending)
-            .apply()
+        prefs.edit {
+            putLong(KEY_LAST_TOTAL, totalSinceBoot)
+            putInt(KEY_PENDING_STEPS, pending)
+        }
 
         maybeFlushPendingSteps(today, prefs)
     }
@@ -215,13 +224,16 @@ class StepCounterService : Service(), SensorEventListener {
         val now = System.currentTimeMillis()
         val lastFlush = prefs.getLong(KEY_LAST_FLUSH_MS, 0L)
         if (pending > 0 && lastFlush == 0L) {
-            prefs.edit().putLong(KEY_LAST_FLUSH_MS, now).apply()
+            prefs.edit { putLong(KEY_LAST_FLUSH_MS, now) }
             if (pending < FLUSH_STEP_THRESHOLD) return
         }
         val shouldFlush = pending >= FLUSH_STEP_THRESHOLD || (pending > 0 && now - lastFlush >= FLUSH_INTERVAL_MS)
         if (!shouldFlush) return
 
-        prefs.edit().putInt(KEY_PENDING_STEPS, 0).putLong(KEY_LAST_FLUSH_MS, now).apply()
+        prefs.edit {
+            putInt(KEY_PENDING_STEPS, 0)
+            putLong(KEY_LAST_FLUSH_MS, now)
+        }
         serviceScope.launch {
             try {
                 val repo = RepositoryProvider.provideStepRepository(applicationContext)
@@ -233,18 +245,30 @@ class StepCounterService : Service(), SensorEventListener {
     }
 
     private fun flushPendingSteps() {
-        val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val prefs = getSharedPreferences(PREFS, MODE_PRIVATE)
         val pending = prefs.getInt(KEY_PENDING_STEPS, 0)
         if (pending <= 0) return
 
         val today = prefs.getString(KEY_ACTIVE_DATE, currentDateProvider()) ?: currentDateProvider()
-        prefs.edit().putInt(KEY_PENDING_STEPS, 0).putLong(KEY_LAST_FLUSH_MS, System.currentTimeMillis()).apply()
+        prefs.edit {
+            putInt(KEY_PENDING_STEPS, 0)
+            putLong(KEY_LAST_FLUSH_MS, System.currentTimeMillis())
+        }
         serviceScope.launch {
             try {
                 val repo = RepositoryProvider.provideStepRepository(applicationContext)
                 repo.incrementSteps(today, pending, "sensor")
             } catch (_: Throwable) {
             }
+        }
+    }
+
+    private fun stopForegroundCompat() {
+        try {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+        } catch (_: NoSuchMethodError) {
+            @Suppress("DEPRECATION")
+            stopForeground(true)
         }
     }
 

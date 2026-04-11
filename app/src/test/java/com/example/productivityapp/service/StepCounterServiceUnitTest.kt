@@ -11,6 +11,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -65,6 +66,24 @@ class StepCounterServiceUnitTest {
             0
         )
         assertFalse(service.isRegistrationActiveForTest())
+    }
+
+    @Test
+    fun permissionDenied_doesNotCrashAndShowsFallbackNotification() {
+        val controller = Robolectric.buildService(StepCounterService::class.java).create()
+        val service = controller.get()
+        service.hasStepSensorOverride = true
+        service.registerSensorUpdatesOverride = { throw SecurityException("permission denied") }
+
+        val startResult = service.onStartCommand(
+            Intent(context, StepCounterService::class.java).apply { action = StepCounterService.ACTION_START },
+            0,
+            0
+        )
+
+        assertEquals(android.app.Service.START_NOT_STICKY, startResult)
+        assertFalse(service.isRegistrationActiveForTest())
+        assertTrue(service.buildNotificationForTest("Activity recognition permission required").actions.isNotEmpty())
     }
 
     @Test

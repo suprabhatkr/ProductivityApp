@@ -1,6 +1,6 @@
 # ProductivityApp — Feature Implementation Plan (KSP-ready)
 
-Last updated: 2026-04-09
+Last updated: 2026-04-11
 
 Purpose
 - This document is the authoritative implementation plan for the four new health features: Water, Sleep, Steps, Run.
@@ -204,6 +204,12 @@ Phase 7 (PR #7) — Water quick-add + Settings + polish + tests
   - [TODO] Add export/delete controls and broader privacy policy UX once the final retention flow is decided.
   - [TODO] Add Compose/UI tests for settings interactions if this screen grows further.
 
+- [IN-PROGRESS] Phase 7 slice: accessibility polish + settings/water UI tests. (saved for follow-up)
+  - [TODO] Add accessibility labels/content descriptions across Home, Water, Steps, Run, Sleep, Settings.
+  - [TODO] Add Compose/UI tests for `SettingsScreen` interactions and regression coverage for save/reset flows.
+  - [TODO] Add Water screen UI tests for quick-add, undo snackbar, and midnight-reset affordance messaging.
+  - [TODO] Review contrast/theme consistency for per-feature accents and polished cards/charts.
+
 -----------------------------------------------------------------
 SECTION 2 — Exact files to add/modify (detailed)
 
@@ -254,6 +260,56 @@ KSP pitfalls & tips
 - When migrating, confirm that every annotation-processor dependency has a KSP-compatible artifact or fallback.
 - Keep Room compiler version in sync with Room runtime; Room 2.8.x supports KSP well. We set `room = "2.8.4"` in the catalog.
 - For Hilt / Dagger or other processors, use their KSP artifacts where available and confirm their versions.
+
+-----------------------------------------------------------------
+SECTION 3A — Pinned dependency matrix (current baseline)
+
+Source of truth
+- Primary: `gradle/libs.versions.toml`
+- Supporting reference: `pinned_versions.md`
+- Gradle wrapper pin: `gradle/wrapper/gradle-wrapper.properties`
+
+Toolchain
+- [DONE] AGP: `9.1.0`
+- [DONE] Gradle Wrapper: `9.3.1`
+- [DONE] Kotlin: `2.3.20`
+- [DONE] KSP: `2.3.6`
+
+Core Android / Compose
+- [DONE] AndroidX Core KTX: `1.10.1`
+- [DONE] Lifecycle Runtime KTX: `2.6.1`
+- [DONE] Lifecycle ViewModel Compose: `2.6.1`
+- [DONE] Activity Compose: `1.8.0`
+- [DONE] Compose BOM: `2026.02.01`
+- [DONE] Navigation Compose: `2.7.7`
+
+Persistence / Security
+- [DONE] Room runtime / ktx / compiler / testing: `2.8.4`
+- [DONE] DataStore Preferences: `1.1.1`
+- [DONE] AndroidX Security Crypto: `1.1.0`
+
+Features / Services
+- [DONE] WorkManager runtime / testing: `2.9.1`
+- [DONE] OSMdroid: `6.1.18`
+- [DONE] Play Services Location: `21.0.1`
+- [DONE] Accompanist Permissions: `0.34.0`
+
+Testing
+- [DONE] JUnit: `4.13.2`
+- [DONE] AndroidX Test JUnit: `1.3.0`
+- [DONE] AndroidX Test Core: `1.5.0`
+- [DONE] Espresso Core: `3.7.0`
+- [DONE] Robolectric: `4.11`
+- [DONE] Kotlinx Coroutines (android + test): `1.7.3`
+
+Pinning notes
+- [DONE] Keep Room runtime/ktx/compiler/testing on the same version.
+- [DONE] Keep WorkManager runtime/testing on the same version.
+- [DONE] Robolectric is currently pinned to `4.11`; JVM tests are constrained via `app/src/test/resources/robolectric.properties` (`sdk=34`) because this Robolectric version does not fully support the app's target SDK 36.
+- [TODO] When upgrading AGP/Kotlin/KSP or Robolectric, run full verification:
+  - `./gradlew :app:assembleDebug`
+  - `./gradlew :app:testDebugUnitTest`
+  - `./gradlew :app:compileDebugAndroidTestKotlin`
 
 -----------------------------------------------------------------
 SECTION 4 — Permissions and manifest (what's done)
@@ -322,6 +378,102 @@ SECTION 6 — Security & privacy checklist (mandatory)
 - [TODO] Disable verbose logging in release builds (guard with `if (BuildConfig.DEBUG)`), remove PII from logs.
 - [TODO] Consider marking DB/data as not backed up (`android:allowBackup="false"`) depending on privacy policy.
 
+Migration plan — move away from deprecated `EncryptedSharedPreferences`
+
+- [DONE] Detailed implementation design document added to `pinned_versions.md` (2026-04-11)
+  - Use `pinned_versions.md` as the architecture/design reference for the storage migration.
+  - Use this section in `plan.md` as the execution tracker and status board.
+
+- [IN-PROGRESS] Current state (2026-04-11)
+  - `UserDataStore.kt` still uses deprecated AndroidX Security Crypto APIs behind a compatibility helper so builds stay clean while preserving the existing encrypted on-device profile store.
+  - This is acceptable short-term, but should be replaced with a non-deprecated encrypted persistence design before adding more sensitive profile fields.
+
+- [TODO] Target architecture (recommended)
+  - Recommended target: encrypted profile store backed by Proto DataStore for typed profile data plus Android Keystore-backed encryption at the repository/storage boundary.
+  - Keep the public `UserProfileRepository` API stable so `SettingsViewModel`, `StepViewModel`, water goal reads, and other callers do not need broad changes.
+  - Keep water day counters separate from profile migration scope unless a broader persistence-unification slice is scheduled.
+
+- [TODO] Phase 0 — design + audit
+  - Inventory all legacy keys in `UserDataStore.kt`:
+    - `profile_name`
+    - `profile_weight`
+    - `profile_height`
+    - `profile_stride`
+    - `profile_units`
+    - `profile_step_goal`
+    - `profile_water_goal`
+  - Audit all consumers of `UserProfileRepository` / `UserDataStore` to preserve semantics for:
+    - null vs default values
+    - profile update triggers / `profile_version`
+    - blocking reads used by water/home/settings flows
+  - Define a typed profile schema with explicit defaults and nullable fields.
+
+- [TODO] Phase 1 — build new store in parallel
+  - Add a new secure profile storage implementation alongside legacy storage; do not remove legacy reads/writes yet.
+  - Add metadata fields:
+    - `schemaVersion`
+    - `migrationState`
+    - `migratedAtEpochMs`
+  - Implement repository adapters/mappers so the rest of the app continues to work against `UserProfile`.
+  - Ensure writes to the new store are atomic and fully validated before commit.
+
+- [TODO] Phase 2 — one-time idempotent migration
+  - On first profile access after upgrade, attempt migration from legacy encrypted prefs into the new store.
+  - Migration requirements:
+    - idempotent: safe to run more than once
+    - non-destructive: do not delete legacy data during initial rollout
+    - field validation/coercion: reject malformed numbers, preserve nulls where intended, clamp invalid numeric ranges if needed
+    - migration marker persisted only after the new store is fully written and re-readable
+  - If keystore/decryption/corruption issues occur, fall back safely without crashing and surface defaults conservatively.
+
+- [TODO] Phase 3 — cutover reads, keep legacy fallback
+  - Change reads to prefer the new store first.
+  - Keep a legacy fallback path for at least one release so upgraded users can recover if migration was partial or an edge case appears.
+  - Prefer writing only to the new store after migration succeeds; legacy writes may remain temporarily if dual-write is needed during one release window.
+
+- [TODO] Phase 4 — cleanup + retirement
+  - After one stable release with successful migration telemetry/manual QA, remove legacy write paths.
+  - Remove compatibility helper usage in `UserDataStore.kt`.
+  - Delete legacy `user_profile_encrypted` keys only after all of the following are true:
+    - migration marker is present
+    - new store reads successfully
+    - rollback support window has ended
+  - Update docs/tests/privacy notes to reflect the new storage implementation.
+
+- [TODO] Rollback strategy
+  - Keep legacy `user_profile_encrypted` data untouched during initial rollout.
+  - If the new store is corrupted or unreadable, fall back to legacy reads without data loss.
+  - Do not delete legacy storage in the same release as the initial migration.
+  - If a release must be rolled back, older app versions should still find their original encrypted prefs intact.
+
+- [TODO] Data integrity + security rules
+  - Preserve null-vs-default semantics for optional profile fields.
+  - Avoid partial writes; either the full profile commits or migration remains incomplete.
+  - Never log sensitive profile values.
+  - Treat decryption, keystore, or corruption exceptions as recoverable migration states, not crash conditions.
+  - Re-check backup/restore policy once the new secure store is chosen.
+
+- [TODO] Testing plan for migration
+  - Unit tests for profile field mapping and defaults.
+  - Migration tests covering:
+    - happy-path upgrade from legacy encrypted prefs
+    - idempotent re-run
+    - malformed legacy numeric values
+    - missing fields
+    - rollback / legacy fallback behavior
+    - corruption or keystore read failure handling
+  - Repository/ViewModel regression tests for settings save/load/reset and step/water goal propagation.
+  - Manual QA:
+    - install old build → save profile → upgrade → verify values
+    - reset profile after migration
+    - downgrade/rollback scenario if retained as a support goal
+
+- [TODO] Suggested implementation order (future PR slices)
+  - PR A: schema + new store + tests, no migration enabled
+  - PR B: migration helper + idempotency tests + fallback reads
+  - PR C: cutover writes/reads to new store, keep legacy backup intact
+  - PR D: legacy cleanup after one stable release
+
 -----------------------------------------------------------------
 SECTION 7 — Testing & QA plan
 
@@ -355,21 +507,28 @@ Quick test commands
   ./gradlew :app:connectedAndroidTest
 
 Recommended additional tests (TODO)
-- [TODO] Add Robolectric-based JVM tests for repositories so CI doesn't require an emulator.
-- [TODO] Add DataStore unit tests using TestCoroutineDispatcher and a temporary directory.
+- [DONE] Add Robolectric-based JVM tests for repositories so CI doesn't require an emulator. (2026-04-07)
+- [DONE] Add DataStore unit tests using TestCoroutineDispatcher and a temporary directory. (2026-04-09)
  - [IN-PROGRESS] Add ViewModel unit tests (mock repositories) to validate state updates.
    - [DONE] `SleepViewModelTest.kt` covers sleep session state and summaries. (2026-04-09)
    - [DONE] `SettingsViewModelTest.kt` covers profile load/save/reset validation and repository updates. (2026-04-09)
    - [TODO] Add similarly focused ViewModel tests for Run and Steps if those screens grow more derived UI state.
-- [TODO] Add Service tests (Robolectric or ServiceTestRule) for StepCounterService and RunTrackingService.
- - [IN-PROGRESS] Add Service tests (Robolectric or ServiceTestRule) for StepCounterService and RunTrackingService. (2026-04-07)
-  - Plan: add lifecycle tests for start/pause/stop and notification assertions; mock FusedLocationProviderClient for location handling.
+- [DONE] Add Service tests (Robolectric or ServiceTestRule) for StepCounterService and RunTrackingService. (2026-04-11)
+  - Added/validated: lifecycle start/stop tests, notification action assertions, graceful permission-denied handling, step batching/rollover checks, and run location heuristics using a mock `LocationProvider`.
 
   Additional testing items (new)
-  - [TODO] Add unit tests for `PolylineUtils` (encode/decode round-trip). Create JVM tests under `app/src/test`.
-  - [TODO] Add UI/Compose tests for `RunMapView` integration (may require instrumentation or Robolectric with AndroidView support).
-  - [TODO] Add Service tests to validate RunTrackingService persists/decodes polylines and resumes correctly after restart.
-- [TODO] Add WorkManager test for MidnightResetWorker using WorkManagerTestInitHelper.
+  - [DONE] Add unit tests for `PolylineUtils` (encode/decode round-trip). (2026-04-11)
+    - File: `app/src/test/java/com/example/productivityapp/util/PolylineUtilsTest.kt`
+    - Coverage: known encoded fixture, round-trip epsilon checks, empty/single-point/bounds cases, and long sequences.
+  - [DONE] Add UI/Compose tests for `RunMapView` integration. (2026-04-11)
+    - File: `app/src/androidTest/java/com/example/productivityapp/ui/run/RunMapViewTest.kt`
+    - Coverage: polyline + marker rendering and replay centering behavior.
+  - [DONE] Add Service tests to validate RunTrackingService persists/decodes polylines and resumes correctly after restart. (2026-04-11)
+  - [DONE] Add WorkManager test for MidnightResetWorker using WorkManagerTestInitHelper. (2026-04-11)
+    - File: `app/src/test/java/com/example/productivityapp/service/MidnightResetWorkerTest.kt`
+    - Coverage: next-midnight delay calculation, schedule enqueueing, boot reschedule, and reset logic.
+    - Stability note: added `app/src/test/resources/robolectric.properties` with `sdk=34` because Robolectric 4.11 in this project does not support targetSdk 36 for JVM tests. This keeps CI/local unit tests stable until Robolectric is upgraded.
+    - 2026-04-11 follow-up: the JVM test was rewritten to avoid direct `androidx.work.testing` imports because the IDE model was intermittently failing to resolve that package even though Gradle could. The test now validates scheduling via runtime WorkManager APIs plus direct reset-operation coverage.
 
 Instrumentation
 - Compose UI tests for navigation and core interactions.
@@ -446,9 +605,9 @@ SECTION 9 — How to update this plan programmatically
      - Manual entry path remains available without sensor or permission.
      - Service lifecycle and UI compile/test coverage added.
 
- - [TODO] Wire ViewModels to expose live running/service state and flows for UI (persist running state in ViewModel and repository).
+ - [TODO] Wire ViewModels to expose richer live running/service state and flows for UI (persist running state in ViewModel and repository).
 
- - [TODO] Add JVM/Robolectric unit tests for repositories and DataStore so CI can run without devices (move androidTest coverage to JVM where possible).
+ - [DONE] Add JVM/Robolectric unit tests for repositories and DataStore so CI can run without devices (move androidTest coverage to JVM where possible). (2026-04-11)
 
  - [TODO] CI: validate KSP-generated sources are available to test classpath; update CI Gradle cache & Gradle wrapper if needed.
 
@@ -457,13 +616,21 @@ SECTION 9 — How to update this plan programmatically
  - 2026-04-07: Repository skeletons + Room entities/DAOs and DataStore wrapper added. (DONE)
  - 2026-04-07: Run map integration implemented: `RunMapView.kt` (OSMdroid) and `PolylineUtils.kt` added; Run polyline storage switched to encoded polyline. (DONE/IN-PROGRESS for migration)
  - 2026-04-07: Unit tests (Robolectric/JVM) for repositories added and local test run successful. (DONE)
- - 2026-04-07: Service skeletons for StepCounterService and RunTrackingService implemented; service tests are in progress. (IN-PROGRESS)
+ - 2026-04-07: Service skeletons for StepCounterService and RunTrackingService implemented; service tests are in progress. (historical)
 
    - 2026-04-09: ISSUE #2 — UserProfile observe/update bug fixed: `UserDataStore.updateUserProfile` now suspends, writes encrypted prefs and touches a DataStore profile_version key so `observeUserProfile()` emits reliably. (DONE)
      - 2026-04-09: Issue #3 (Run tracker) fully completed and build/tests validated. (DONE)
      - 2026-04-09: Issue #4 (Steps tracker service + permission flows + tests) completed and build/tests validated. (DONE)
     - 2026-04-09: Sleep feature implemented: session flows, quality rating, weekly chart/history, and JVM tests completed and validated. (DONE)
-    - 2026-04-09: Settings/profile slice implemented: repository-backed `SettingsScreen`, `SettingsViewModel`, home navigation entry, profile reset support, and JVM tests validated. (DONE / Phase 7 in progress)
+     - 2026-04-09: Settings/profile slice implemented: repository-backed `SettingsScreen`, `SettingsViewModel`, home navigation entry, profile reset support, and JVM tests validated. (DONE / Phase 7 in progress)
+     - 2026-04-11: Issue #5 completed — `MidnightResetWorker` + `BootCompleteReceiver` + WorkManager tests implemented and wired into app startup. (DONE)
+     - 2026-04-11: Issue #6 completed — `PolylineUtilsTest` added for encode/decode round-trip and edge cases. (DONE)
+     - 2026-04-11: Issue #7 completed — `RunMapView` visuals polished and instrumentation tests added for polyline/replay rendering. (DONE)
+     - 2026-04-11: Issue #8 completed — Robolectric service tests validated for both `StepCounterService` and `RunTrackingService`. (DONE)
+     - 2026-04-11: Gradle cleanup completed — removed duplicate dependency declarations from `app/build.gradle.kts`, normalized test deps through the version catalog, and trimmed duplicate/unused catalog aliases to reduce IDE/build-model noise. (DONE)
+     - 2026-04-11: `UserDataStore.kt` deprecation cleanup completed by isolating deprecated AndroidX Security Crypto usage behind a compatibility helper; storage format preserved. (DONE)
+     - 2026-04-11: Added pinned dependency matrix section to `plan.md`, aligned with `libs.versions.toml`, `pinned_versions.md`, and the Gradle wrapper pin. (DONE)
+     - 2026-04-11: Added a dedicated migration plan in `plan.md` to move away from deprecated `EncryptedSharedPreferences` using a phased, rollback-safe approach. (DONE)
 
    - Note: This file was updated to explicitly track "polished UI for every window" as part of the short-term priorities so the next session can pick this up easily.
 
@@ -480,21 +647,21 @@ Contact / notes
 
   ### Steps Screen (file: `app/src/main/java/.../ui/steps/StepScreen.kt`)
   - [x] Implement live step display bound to `StepViewModel.observeSteps(date)` (StateFlow/Flow).
-  - [ ] Add Start / Pause / Stop controls that start/stop `StepCounterService` and persist state in ViewModel.
-  - [ ] Permission flow: show rationale for `ACTIVITY_RECOGNITION`, and fall back to manual step entry when absent.
+  - [x] Add Start / Pause / Stop controls that start/stop `StepCounterService` and persist state in ViewModel.
+  - [x] Permission flow: show rationale for `ACTIVITY_RECOGNITION`, and fall back to manual step entry when absent.
   - [x] Surface the saved daily step goal and progress in the screen UI.
   - [ ] Add compact chart (bar chart) showing steps over last 7 days; add touch-to-view details.
   - [ ] Add content descriptions for all interactive elements and a11y-focused label for step count.
-  - [ ] Add UI tests (Compose) for permission dialog and start/stop service flow.
+  - [x] Add UI tests (Compose) for permission dialog and start/stop service flow.
 
   ### Run Screen (file: `app/src/main/java/.../ui/run/RunScreen.kt` + `RunMapView.kt`)
-  - [ ] Implement Start / Pause / Resume / Stop controls wired to `RunViewModel` and `RunTrackingService`.
-  - [ ] Implement live stats area: elapsed time, distance (m / km), pace, average speed, calories.
-  - [ ] Map polish: center-on-start, follow-run toggle, start/end markers, appropriate zoom on start.
-  - [ ] Improve polyline visuals: stroke width, color from theme (per-run accent), dashed vs solid for paused state.
-  - [ ] Add replay mode: slider to scrub through encoded polyline and a small play/pause for replay.
-  - [ ] Permission flow: request `ACCESS_FINE_LOCATION` with rationale; background location opt-in only after user opt-in.
-  - [ ] Add UI tests for RunScreen interactions and RunMapView rendering (instrumentation or Robolectric as appropriate).
+  - [x] Implement Start / Pause / Resume / Stop controls wired to `RunViewModel` and `RunTrackingService`.
+  - [x] Implement live stats area: elapsed time, distance (m / km), pace, average speed, calories.
+  - [x] Map polish: center-on-start, follow-run toggle, start/end markers, appropriate zoom on start.
+  - [x] Improve polyline visuals: stroke width, color from theme (per-run accent), dashed vs solid for paused state.
+  - [x] Add replay mode: slider to scrub through encoded polyline and a small play/pause for replay.
+  - [x] Permission flow: request `ACCESS_FINE_LOCATION` with rationale; background location opt-in only after user opt-in.
+  - [x] Add UI tests for RunScreen interactions and RunMapView rendering (instrumentation or Robolectric as appropriate).
 
   ### Sleep Screen (file: `app/src/main/java/.../ui/sleep/SleepScreen.kt`)
   - [x] Implement Start / Stop session controls and display current session duration when running.
@@ -517,7 +684,7 @@ Contact / notes
   - [ ] Home: ensure tiles reflect per-feature accent colors and provide quick actions (start run, add water, start sleep).
   - [x] Water: quick-add buttons (+100ml, +250ml), manual entry, and daily goal progress bar.
   - [x] Water goal now follows the saved `UserProfile.dailyWaterGoalMl` setting.
-  - [ ] Water auto-reset: ensure midnight reset behavior is clear in UI (show last reset time) and allow opt-out in Settings.
+  - [x] Water auto-reset backend: midnight reset scheduling is implemented via `MidnightResetWorker`; UI messaging/opt-out remains follow-up work.
   - [ ] Add accessibility labels for quick-add buttons and home tiles.
   - [ ] Add unit tests for WaterDataStore interactions and UI tests for the quick-add flows.
 

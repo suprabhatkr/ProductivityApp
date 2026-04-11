@@ -38,6 +38,9 @@ android {
     buildFeatures {
         compose = true
     }
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
+    }
 }
 
 dependencies {
@@ -49,30 +52,23 @@ dependencies {
     implementation(libs.room.ktx)
     ksp(libs.room.compiler)
     implementation(libs.androidx.datastore.preferences)
-    // Fallback explicit dependency in case version catalog alias resolution differs in some environments
-    implementation("androidx.datastore:datastore-preferences:1.1.1")
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
-    // ViewModel compose integration
-    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.6.1")
-    // Navigation Compose
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.navigation.compose)
-    // Fallback explicit artifact in case alias resolution is different in some environments
-    implementation("androidx.navigation:navigation-compose:2.7.7")
     implementation(libs.work.runtime.ktx)
     implementation(libs.osmdroid)
     implementation(libs.play.services.location)
     implementation(libs.security.crypto)
     implementation(libs.accompanist.permissions)
     testImplementation(libs.junit)
-    // Robolectric + Room testing + coroutines test for JVM unit tests
-    testImplementation("org.robolectric:robolectric:4.11")
-    testImplementation("androidx.test:core:1.5.0")
-    testImplementation("androidx.room:room-testing:2.8.4")
-    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
+    testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.test.core)
+    testImplementation(libs.room.testing)
+    testImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
