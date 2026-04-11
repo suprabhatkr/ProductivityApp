@@ -69,6 +69,9 @@ dependencies {
     testImplementation(libs.junit)
     testImplementation(libs.robolectric)
     testImplementation(libs.androidx.test.core)
+    // Compose UI test APIs for JVM unit tests
+    testImplementation(libs.androidx.compose.ui.test.junit4)
+    // (Optional) Paparazzi could be added here if desired and available in repositories.
     testImplementation(libs.room.testing)
     testImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(libs.androidx.junit)
