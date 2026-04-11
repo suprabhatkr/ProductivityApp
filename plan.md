@@ -387,6 +387,10 @@ Migration plan — move away from deprecated `EncryptedSharedPreferences`
 - [IN-PROGRESS] Current state (2026-04-11)
   - `UserDataStore.kt` still uses deprecated AndroidX Security Crypto APIs behind a compatibility helper so builds stay clean while preserving the existing encrypted on-device profile store.
   - This is acceptable short-term, but should be replaced with a non-deprecated encrypted persistence design before adding more sensitive profile fields.
+  - Slice 1 foundation now compiles and its JVM tests pass.
+  - Implementation note: the project currently uses a handwritten `UserProfileProto.kt` / `MigrationStateProto.kt` shim under `datastore/profile/proto/` plus `protobuf-javalite` runtime for Slice 1 stability; `app/src/main/proto/user_profile.proto` remains the schema reference and can be switched to generated-lite sources in a later slice if desired.
+  - Rollout state: secure-profile migration and secure-store read cutover are now enabled through the repository boundary.
+  - Result: profile reads prefer the secure store when a readable `COMPLETE` record exists, and fall back to legacy storage on incomplete or unreadable secure state.
 
 - [TODO] Target architecture (recommended)
   - Recommended target: encrypted profile store backed by Proto DataStore for typed profile data plus Android Keystore-backed encryption at the repository/storage boundary.
@@ -408,7 +412,7 @@ Migration plan — move away from deprecated `EncryptedSharedPreferences`
     - blocking reads used by water/home/settings flows
   - Define a typed profile schema with explicit defaults and nullable fields.
 
-- [TODO] Phase 1 — build new store in parallel
+- [DONE] Phase 1 — build new store in parallel (2026-04-11)
   - Add a new secure profile storage implementation alongside legacy storage; do not remove legacy reads/writes yet.
   - Add metadata fields:
     - `schemaVersion`
@@ -417,7 +421,7 @@ Migration plan — move away from deprecated `EncryptedSharedPreferences`
   - Implement repository adapters/mappers so the rest of the app continues to work against `UserProfile`.
   - Ensure writes to the new store are atomic and fully validated before commit.
 
-- [TODO] Phase 2 — one-time idempotent migration
+- [IN-PROGRESS] Phase 2 — one-time idempotent migration (2026-04-11)
   - On first profile access after upgrade, attempt migration from legacy encrypted prefs into the new store.
   - Migration requirements:
     - idempotent: safe to run more than once
@@ -425,20 +429,44 @@ Migration plan — move away from deprecated `EncryptedSharedPreferences`
     - field validation/coercion: reject malformed numbers, preserve nulls where intended, clamp invalid numeric ranges if needed
     - migration marker persisted only after the new store is fully written and re-readable
   - If keystore/decryption/corruption issues occur, fall back safely without crashing and surface defaults conservatively.
+  - Current implementation status:
+    - `UserProfileMigrationCoordinator` now performs a real staged migration in isolation:
+      1. read legacy snapshot
+      2. map via `UserProfileSchemaMapper.fromLegacy(...)`
+      3. write a `MIGRATING` record to the secure store
+      4. re-read and verify the staged payload
+      5. write a `COMPLETE` record with `migratedAtEpochMs`
+      6. re-read and verify the finalized payload
+    - This algorithm is now triggered best-effort through `SecureAwareUserProfileRepository` during normal repository access while secure cutover is still off, so current user-visible read behavior remains unchanged.
+    - Failure handling is coarse-grained and non-PII: `WRITE_FAILED`, `VERIFY_FAILED`, `FINALIZE_FAILED`.
 
-- [TODO] Phase 3 — cutover reads, keep legacy fallback
+- [DONE] Phase 3 — cutover reads, keep legacy fallback (2026-04-11)
   - Change reads to prefer the new store first.
   - Keep a legacy fallback path for at least one release so upgraded users can recover if migration was partial or an edge case appears.
   - Prefer writing only to the new store after migration succeeds; legacy writes may remain temporarily if dual-write is needed during one release window.
+  - Current implementation status:
+    - `SecureAwareUserProfileRepository` now serves secure-first blocking and flow reads when the secure store is readable and `migrationState = COMPLETE`.
+    - Legacy fallback remains active for:
+      - migration not yet complete
+      - secure read failures
+      - secure flow/collection failures
+      - incomplete secure states
+    - Legacy writes are still preserved and secure writes are mirrored best-effort after migration completion.
 
-- [TODO] Phase 4 — cleanup + retirement
-  - After one stable release with successful migration telemetry/manual QA, remove legacy write paths.
-  - Remove compatibility helper usage in `UserDataStore.kt`.
-  - Delete legacy `user_profile_encrypted` keys only after all of the following are true:
-    - migration marker is present
-    - new store reads successfully
-    - rollback support window has ended
-  - Update docs/tests/privacy notes to reflect the new storage implementation.
+ - [TODO] Phase 4 — cleanup, retirement & verification (tightened checklist)
+   - Goal: retire legacy encrypted prefs and compatibility helpers only after measurable stability and a safety window.
+   - Preconditions (all must be satisfied before deleting legacy data or removing compatibility code):
+     - migration marker (`migrationState = COMPLETE`) observed in field telemetry for > 99.5% of upgraded users over a minimum window (suggested: 2 consecutive releases / ~4 weeks), OR validated by manual QA for small rollouts.
+     - Secure store read/write success rates in telemetry show negligible errors; any errors must be investigated and resolved.
+     - No critical rollback or compatibility bug reported that requires restoring legacy reads (maintain legacy read path for the full safety window).
+     - Automated integration tests covering rollback/fallback scenarios pass consistently on CI (see "Testing" section for required test names).
+   - Retirement steps (ordered):
+     1. Freeze legacy-write paths: stop writing new data to legacy keys but keep read fallback intact for at least one release to detect unexpected regressions.
+     2. Monitor telemetry and perform a manual QA sweep on a wide device matrix (OEM variations, low-memory scenarios, keystore corruption simulation).
+     3. After safety window and telemetry review, remove legacy-write and compatibility helper code in a single PR with clear changelog and privacy notes.
+     4. Only delete legacy `user_profile_encrypted` keys and associated files after a final audit and an explicit retention-policy sign-off; preserve a documented rollback plan in case of emergency.
+     5. Update docs/tests/privacy notes and add a migration post-mortem entry in the repo explaining when/why legacy data was removed.
+   - Suggested safety window: keep legacy read path + data intact for at least 2 releases (~4 weeks) after cutover is enabled, unless telemetry/QA indicate earlier safe removal.
 
 - [TODO] Rollback strategy
   - Keep legacy `user_profile_encrypted` data untouched during initial rollout.
@@ -456,12 +484,12 @@ Migration plan — move away from deprecated `EncryptedSharedPreferences`
 - [TODO] Testing plan for migration
   - Unit tests for profile field mapping and defaults.
   - Migration tests covering:
-    - happy-path upgrade from legacy encrypted prefs
-    - idempotent re-run
-    - malformed legacy numeric values
-    - missing fields
+    - [DONE] happy-path upgrade from legacy encrypted prefs (coordinator + real secure store JVM coverage, 2026-04-11)
+    - [DONE] idempotent re-run (2026-04-11)
+    - [DONE] malformed legacy numeric values (mapper/coordinator coverage, 2026-04-11)
+    - [DONE] missing fields (2026-04-11)
     - rollback / legacy fallback behavior
-    - corruption or keystore read failure handling
+    - [IN-PROGRESS] corruption or keystore read failure handling
   - Repository/ViewModel regression tests for settings save/load/reset and step/water goal propagation.
   - Manual QA:
     - install old build → save profile → upgrade → verify values
@@ -473,6 +501,147 @@ Migration plan — move away from deprecated `EncryptedSharedPreferences`
   - PR B: migration helper + idempotency tests + fallback reads
   - PR C: cutover writes/reads to new store, keep legacy backup intact
   - PR D: legacy cleanup after one stable release
+
+- [TODO] Slice 1 — secure profile store foundation (first implementation slice)
+  - Goal: add the new secure profile store foundation in parallel with legacy storage, with zero behavior changes to current `UserProfileRepository` consumers.
+  - Explicit non-goals for Slice 1:
+    - no runtime cutover
+    - no deletion of legacy encrypted prefs
+    - no provider/repository wiring changes that affect current app behavior
+
+  Files to add (foundation)
+  - [DONE] `app/src/main/java/com/example/productivityapp/datastore/profile/SecureUserProfileStore.kt` (2026-04-11)
+    - Define the typed internal storage contract for profile read/write operations and metadata access.
+  - [DONE] `app/src/main/java/com/example/productivityapp/datastore/profile/EncryptedProtoUserProfileStore.kt` (2026-04-11)
+    - Add the parallel secure-store implementation; do not wire it into `RepositoryProvider` yet.
+  - [DONE] `app/src/main/java/com/example/productivityapp/datastore/profile/SecureProfileCipher.kt` (2026-04-11)
+    - Encapsulate keystore-backed encrypt/decrypt responsibilities so storage and migration code remain testable.
+
+  Schema / serializer decisions
+  - [DONE] Confirm Proto DataStore as the storage format for the new secure profile store. (2026-04-11)
+  - [DONE] Add `app/src/main/proto/user_profile.proto` (2026-04-11)
+    - Include user profile payload fields plus migration metadata:
+      - `schema_version`
+      - `migration_state`
+      - `migrated_at_epoch_ms`
+      - `last_write_epoch_ms`
+  - [DONE] Add `app/src/main/java/com/example/productivityapp/datastore/profile/ProtoUserProfileSerializer.kt` (2026-04-11)
+    - Preserve `UserProfile` semantics for:
+      - nullable `displayName`, `weightKg`, `heightCm`
+      - default `strideLengthMeters = 0.78`
+      - default `preferredUnits = "metric"`
+      - default `dailyStepGoal = 10000`
+      - default `dailyWaterGoalMl = 2000`
+  - [DONE] Add handwritten Slice 1 proto shim under `app/src/main/java/com/example/productivityapp/datastore/profile/proto/` to keep the foundation compiling without generated-source wiring changes. (2026-04-11)
+  - [DONE] Add field-mapping rules doc/comments near serializer/store implementation for legacy key mapping from `UserDataStore.kt`. (2026-04-11)
+
+  Migration coordinator skeleton (not yet wired)
+  - [DONE] `app/src/main/java/com/example/productivityapp/datastore/profile/LegacyProfileReader.kt` (2026-04-11)
+    - Read legacy `user_profile_encrypted` values only; no writes.
+  - [DONE] `app/src/main/java/com/example/productivityapp/datastore/profile/UserProfileMigrationCoordinator.kt` (2026-04-11)
+    - Add the coordinator skeleton with idempotent migration states, but do not trigger it automatically in this slice.
+  - [DONE] Keep `app/src/main/java/com/example/productivityapp/data/repository/impl/DataStoreUserProfileRepository.kt` unchanged in Slice 1. (2026-04-11)
+  - [DONE] Keep `app/src/main/java/com/example/productivityapp/data/RepositoryProvider.kt` unchanged in Slice 1. (2026-04-11)
+
+  Tests to write first
+  - [DONE] `app/src/test/java/com/example/productivityapp/datastore/profile/UserProfileSchemaMapperTest.kt` (2026-04-11)
+    - Cover defaults, nullability preservation, and malformed numeric legacy value handling.
+  - [DONE] `app/src/test/java/com/example/productivityapp/datastore/profile/EncryptedProtoUserProfileStoreTest.kt` (2026-04-11)
+    - Cover atomic write/readback, schema defaults, and corrupted payload fallback behavior.
+  - [DONE] `app/src/test/java/com/example/productivityapp/datastore/profile/UserProfileMigrationCoordinatorTest.kt` (2026-04-11)
+    - Cover “already complete” idempotency, legacy-read mapping, and no-op behavior when migration is not enabled.
+
+  Slice 1 acceptance criteria
+  - [DONE] New secure profile store classes compile and are covered by JVM tests. (verified with `:app:compileDebugKotlin` and `:app:testDebugUnitTest` on 2026-04-11)
+  - [DONE] No existing app behavior changes: current `UserProfileRepository` consumers still use the legacy-backed path. (2026-04-11)
+  - [DONE] No automatic migration runs yet. (2026-04-11)
+  - [IN-PROGRESS] The next slice can wire migration/coordinator behavior without redesigning the schema/store foundation.
+
+  Slice 1 follow-up note
+  - [TODO] Account for current blocking-read callers such as `app/src/main/java/com/example/productivityapp/app/data/repository/WaterRepository.kt` in Slice 2 before any repository cutover.
+
+  Slice 2 — migration coordinator write path (current slice)
+  - Goal: implement and validate the real secure-store migration algorithm without changing runtime repository wiring.
+  - Explicit non-goals for Slice 2:
+    - no automatic migration trigger in production flows yet
+    - no repository/provider cutover to the new secure store
+    - no deletion of legacy encrypted prefs
+
+  Coordinator behavior
+  - [DONE] Extend `app/src/main/java/com/example/productivityapp/datastore/profile/UserProfileMigrationCoordinator.kt` with staged write + verify + finalize behavior. (2026-04-11)
+  - [DONE] Add coarse non-sensitive failure outcomes for write/verify/finalize failures. (2026-04-11)
+  - [DONE] Preserve idempotency by returning `AlreadyComplete` when the secure store already carries `migrationState = COMPLETE`. (2026-04-11)
+
+  Tests added/expanded
+  - [DONE] Expand `app/src/test/java/com/example/productivityapp/datastore/profile/UserProfileMigrationCoordinatorTest.kt` for:
+    - successful migration flow
+    - idempotent second run
+    - missing legacy data
+    - verification mismatch
+    - real temp-file secure-store persistence
+    (2026-04-11)
+
+  Slice 2 status
+  - [DONE] Migration coordinator can now migrate legacy profile data into the new secure store in tests/dev code paths. (2026-04-11)
+  - [DONE] Full validation run succeeded after the Slice 2 coordinator changes:
+    - `./gradlew :app:testDebugUnitTest --tests "com.example.productivityapp.datastore.profile.UserProfileMigrationCoordinatorTest" --console=plain`
+    - `./gradlew :app:compileDebugKotlin :app:testDebugUnitTest --console=plain`
+  - [DONE] Wire the coordinator into runtime profile access behind a safe fallback gate in Slice 3. (2026-04-11)
+
+  Slice 3 — hybrid repository cutover scaffold
+  - Goal: route profile access through a new-store-aware repository while keeping rollback safety and current runtime behavior intact.
+  - Explicit non-goals for this slice:
+    - no default-on secure-store cutover in production yet
+    - no deletion of legacy encrypted prefs
+    - no removal of legacy fallback paths
+
+  Repository boundary changes
+  - [DONE] Extend `app/src/main/java/com/example/productivityapp/data/repository/UserProfileRepository.kt` with `getUserProfileBlocking()` so synchronous callers are centralized behind the repository contract. (2026-04-11)
+  - [DONE] Update `app/src/main/java/com/example/productivityapp/data/repository/impl/DataStoreUserProfileRepository.kt` to implement the blocking read via `UserDataStore`. (2026-04-11)
+  - [DONE] Add `app/src/main/java/com/example/productivityapp/data/repository/impl/SecureAwareUserProfileRepository.kt`. (2026-04-11)
+    - Behavior:
+      - legacy-first when cutover is disabled
+      - secure-store-first only when cutover is enabled and migration is confirmed `COMPLETE`
+      - fallback to legacy repository on secure migration/read failures
+      - legacy writes always preserved
+      - secure writes mirrored best-effort after secure cutover is active and migration is complete
+
+  Provider / caller wiring
+  - [DONE] `app/src/main/java/com/example/productivityapp/data/RepositoryProvider.kt` now builds the hybrid repository and caches it as a singleton to avoid multiple DataStore instances for the same secure-store file. (2026-04-11)
+  - [DONE] Runtime gates in `RepositoryProvider` are now configured for the secure-read cutover slice: (2026-04-11)
+    - `ENABLE_SECURE_PROFILE_MIGRATION = true`
+    - `ENABLE_SECURE_PROFILE_CUTOVER = true`
+    - Result: migration runs best-effort during repository access and profile reads are now secure-first with legacy fallback preserved.
+  - [DONE] `app/src/main/java/com/example/productivityapp/app/data/repository/WaterRepository.kt` now uses `UserProfileRepository.getUserProfileBlocking()` instead of reading profile data directly from `UserDataStore`. (2026-04-11)
+  - [DONE] `app/src/main/java/com/example/productivityapp/data/repository/impl/SecureAwareUserProfileRepository.kt` now triggers migration best-effort during `observeUserProfile()`, `getUserProfileBlocking()`, and `updateUserProfile()` even when cutover is off. (2026-04-11)
+    - Result: secure store population can be verified through real repository/runtime flows without changing the active read source.
+  - [DONE] `app/src/main/java/com/example/productivityapp/data/repository/impl/SecureAwareUserProfileRepository.kt` now hardens secure-first reads with legacy fallback for both blocking and flow-based access. (2026-04-11)
+    - Flow fallback now handles secure observe/collection failures without breaking callers.
+    - Blocking fallback remains active if migration is incomplete or the secure store is unreadable.
+
+  Tests added
+  - [DONE] `app/src/test/java/com/example/productivityapp/data/repository/impl/SecureAwareUserProfileRepositoryTest.kt` added for:
+    - cutover-disabled legacy reads
+    - cutover-enabled secure-store preference after migration
+    - secure failure fallback to legacy blocking reads
+    - dual-write mirroring after secure migration completion
+    - migration-enabled/cutover-disabled secure-store population through observe/blocking runtime paths
+    - real temp-file secure-store population while legacy reads remain active
+    - cutover-enabled secure-first blocking reads
+    - cutover-enabled fallback for incomplete secure state
+    - cutover-enabled fallback for secure flow observe failures
+    - real temp-file secure-read cutover behavior
+    (2026-04-11)
+
+  Slice 3 status
+  - [DONE] Hybrid repository scaffold implemented and wired safely behind default-off gates. (2026-04-11)
+  - [DONE] Blocking profile access has been centralized behind `UserProfileRepository`. (2026-04-11)
+  - [DONE] Migration-only rollout slice completed: migration gate enabled, cutover remains off, and secure-store population is verified through repository-driven flows. (2026-04-11)
+  - [DONE] Secure-read cutover slice completed: secure-first reads are enabled with legacy fallback still intact. (2026-04-11)
+  - [DONE] Validation run succeeded after Slice 3 changes:
+    - `./gradlew :app:testDebugUnitTest --tests "com.example.productivityapp.data.repository.impl.SecureAwareUserProfileRepositoryTest" --console=plain`
+    - `./gradlew :app:compileDebugKotlin :app:testDebugUnitTest :app:assembleDebug --console=plain`
+  - [TODO] In the next slice, perform manual upgrade/rollback QA, decide the dual-write retention window, and prepare eventual legacy-write retirement criteria.
 
 -----------------------------------------------------------------
 SECTION 7 — Testing & QA plan
@@ -631,6 +800,10 @@ SECTION 9 — How to update this plan programmatically
      - 2026-04-11: `UserDataStore.kt` deprecation cleanup completed by isolating deprecated AndroidX Security Crypto usage behind a compatibility helper; storage format preserved. (DONE)
      - 2026-04-11: Added pinned dependency matrix section to `plan.md`, aligned with `libs.versions.toml`, `pinned_versions.md`, and the Gradle wrapper pin. (DONE)
      - 2026-04-11: Added a dedicated migration plan in `plan.md` to move away from deprecated `EncryptedSharedPreferences` using a phased, rollback-safe approach. (DONE)
+     - 2026-04-11: Slice 1 secure-profile foundation recovered and validated — handwritten proto shim parser fixed, `:app:compileDebugKotlin` and the full `:app:testDebugUnitTest` suite passed, and current repository wiring remains unchanged. (DONE)
+     - 2026-04-11: Slice 2 secure-profile migration logic implemented in `UserProfileMigrationCoordinator` with staged write/readback verification, idempotency coverage, real temp-file store verification, and no runtime cutover yet. (DONE / next step is Slice 3 gating + fallback wiring)
+     - 2026-04-11: Migration-only rollout slice completed — `RepositoryProvider` now enables secure-profile migration while keeping read cutover off, `SecureAwareUserProfileRepository` populates the secure store during normal repository access, and compile/JVM tests/assemble all passed. (DONE)
+     - 2026-04-11: Secure-read cutover slice completed — `RepositoryProvider` now enables secure-store reads, `SecureAwareUserProfileRepository` serves secure-first profile reads with legacy fallback for incomplete/unreadable secure state, and compile/JVM tests/assemble all passed. (DONE)
 
    - Note: This file was updated to explicitly track "polished UI for every window" as part of the short-term priorities so the next session can pick this up easily.
 

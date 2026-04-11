@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+option java_package = "com.example.productivityapp.datastore.profile.proto";
+option java_multiple_files = true;
+
+message UserProfileProto {
+  optional string display_name = 1;
+  optional double weight_kg = 2;
+  optional int32 height_cm = 3;
+
+  double stride_length_meters = 4;
+  string preferred_units = 5;
+  int32 daily_step_goal = 6;
+  int32 daily_water_goal_ml = 7;
+
+  int32 schema_version = 8;
+  MigrationStateProto migration_state = 9;
+  int64 migrated_at_epoch_ms = 10;
+  int64 last_write_epoch_ms = 11;
+}
+
+enum MigrationStateProto {
+  MIGRATION_STATE_NONE = 0;
+  MIGRATION_STATE_MIGRATING = 1;
+  MIGRATION_STATE_COMPLETE = 2;
+  MIGRATION_STATE_FAILED = 3;
+}
+

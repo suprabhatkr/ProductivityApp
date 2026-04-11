@@ -12,6 +12,11 @@ import com.example.productivityapp.data.RepositoryProvider
 import com.example.productivityapp.app.ui.home.HomeScreen as AppHomeScreen
 import com.example.productivityapp.app.ui.water.WaterIntakeScreen as AppWaterScreen
 import com.example.productivityapp.service.MidnightResetWorker
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.Modifier
+import com.example.productivityapp.ui.debug.MigrationStatusOverlay
 import com.example.productivityapp.ui.run.RunScreen
 import com.example.productivityapp.ui.sleep.SleepScreen
 import com.example.productivityapp.ui.steps.StepScreen
@@ -30,8 +35,12 @@ class MainActivity : ComponentActivity() {
         setContent {
             ProductivityAppTheme {
                 val navController = rememberNavController()
+                val ctx = LocalContext.current
 
-                NavHost(navController = navController, startDestination = "home") {
+                // Layer UI so debug overlays can be shown on top of app content
+                Box(modifier = Modifier.fillMaxSize()) {
+
+                    NavHost(navController = navController, startDestination = "home") {
                     composable("home") {
                         val waterVm: WaterViewModel = viewModel()
                         AppHomeScreen(
@@ -59,6 +68,9 @@ class MainActivity : ComponentActivity() {
                             viewModel = settingsVm,
                         )
                     }
+                }
+                    // small debug overlay to show migration/legacy status for manual QA
+                    MigrationStatusOverlay(appContext = ctx)
                 }
             }
         }
