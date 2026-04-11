@@ -124,6 +124,8 @@ private class FakeUserProfileRepository(initial: UserProfile) : UserProfileRepos
 
     override fun observeUserProfile(): Flow<UserProfile> = profile
 
+    override fun getUserProfileBlocking(): UserProfile = profile.value
+
     override suspend fun updateUserProfile(profile: UserProfile) {
         this.profile.value = profile
     }

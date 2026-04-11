@@ -104,6 +104,8 @@ private class FakeStepUserProfileRepository(initial: UserProfile) : UserProfileR
 
     override fun observeUserProfile(): Flow<UserProfile> = profile.map { it }
 
+    override fun getUserProfileBlocking(): UserProfile = profile.value
+
     override suspend fun updateUserProfile(profile: UserProfile) {
         this.profile.value = profile
     }

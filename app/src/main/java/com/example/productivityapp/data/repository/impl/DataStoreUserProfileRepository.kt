@@ -8,6 +8,8 @@ import kotlinx.coroutines.flow.Flow
 class DataStoreUserProfileRepository(private val dataStore: UserDataStore) : UserProfileRepository {
     override fun observeUserProfile(): Flow<UserProfile> = dataStore.observeUserProfile()
 
+    override fun getUserProfileBlocking(): UserProfile = dataStore.getUserProfileBlocking()
+
     override suspend fun updateUserProfile(profile: UserProfile) {
         dataStore.updateUserProfile(profile)
     }

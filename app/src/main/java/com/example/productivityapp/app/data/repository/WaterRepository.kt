@@ -1,15 +1,16 @@
 package com.example.productivityapp.app.data.repository
 
 import android.content.Context
+import androidx.core.content.edit
 import com.example.productivityapp.app.data.model.WaterDayData
 import com.example.productivityapp.app.data.model.WaterEntry
-import com.example.productivityapp.datastore.UserDataStore
+import com.example.productivityapp.data.RepositoryProvider
+import com.example.productivityapp.data.repository.UserProfileRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import org.json.JSONArray
 import org.json.JSONObject
-import androidx.core.content.edit
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -20,10 +21,13 @@ import kotlinx.coroutines.withContext
  * Lightweight repository implementation using SharedPreferences + org.json so we don't need
  * to add DataStore or Gson dependencies.
  */
-class WaterRepository(context: Context) {
+class WaterRepository(
+    context: Context,
+    private val userProfileRepository: UserProfileRepository =
+        RepositoryProvider.provideUserProfileRepository(context.applicationContext),
+) {
 
     private val prefs = context.getSharedPreferences("water_data_prefs", Context.MODE_PRIVATE)
-    private val userDataStore = UserDataStore(context.applicationContext)
     private val dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
 
     private val _todayData = MutableStateFlow(WaterDayData(date = "", goalMl = 2000))
@@ -36,7 +40,7 @@ class WaterRepository(context: Context) {
 
     private fun loadToday() {
         val today = LocalDate.now().format(dateFormatter)
-        val goal = userDataStore.getUserProfileBlocking().dailyWaterGoalMl
+        val goal = userProfileRepository.getUserProfileBlocking().dailyWaterGoalMl
         val json = prefs.getString(entriesPrefKey(today), "[]") ?: "[]"
 
         val entries = mutableListOf<WaterEntry>()
