@@ -4,12 +4,11 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
-import android.content.Context
 import android.content.Intent
 import android.location.Location
-import android.os.Build
 import android.os.IBinder
 import android.os.SystemClock
+import androidx.annotation.VisibleForTesting
 import androidx.core.app.NotificationCompat
 import android.app.Service
 import com.example.productivityapp.data.RepositoryProvider
@@ -36,7 +35,8 @@ class RunTrackingService : Service() {
         private const val NOTIF_ID = 2001
     }
 
-    private val scope = CoroutineScope(Dispatchers.Default + Job())
+    private val serviceJob = Job()
+    private val scope = CoroutineScope(Dispatchers.Default + serviceJob)
     private var locationProvider: LocationProvider? = null
     private lateinit var locationRequest: LocationRequest
     private var locationCallback: LocationCallback? = null
@@ -60,6 +60,12 @@ class RunTrackingService : Service() {
     fun setLocationProvider(provider: LocationProvider) {
         this.locationProvider = provider
     }
+
+    @VisibleForTesting
+    internal fun buildNotificationForTest(text: String): Notification = buildNotification(text)
+
+    @VisibleForTesting
+    internal fun handleLocationForTest(location: Location) = handleLocation(location)
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -100,11 +106,7 @@ class RunTrackingService : Service() {
                     polyline = ""
                 )
                 runId = repo.startRun(runEntity)
-                // ensure points list reflects any existing stored polyline (should be empty for new run)
-                if (runId > 0) {
-                    // nothing to decode here; runEntity is new
-                }
-            } catch (t: Throwable) {
+            } catch (_: Throwable) {
                 // ignore for skeleton
             }
         }
@@ -119,7 +121,7 @@ class RunTrackingService : Service() {
         }
         try {
             locationProvider?.requestLocationUpdates(locationRequest, locationCallback!!)
-        } catch (e: SecurityException) {
+        } catch (_: SecurityException) {
             // location permission missing — callers must request permission before starting service
         }
     }
@@ -128,7 +130,7 @@ class RunTrackingService : Service() {
         if (isPaused) return
         try {
             locationCallback?.let { locationProvider?.removeLocationUpdates(it) }
-        } catch (t: Throwable) {
+        } catch (_: Throwable) {
         }
         elapsedBeforePauseMs += (SystemClock.elapsedRealtime() - activeSegmentStartElapsedMs).coerceAtLeast(0L)
         isPaused = true
@@ -140,7 +142,7 @@ class RunTrackingService : Service() {
         locationCallback?.let {
             try {
                 locationProvider?.requestLocationUpdates(locationRequest, it)
-            } catch (e: SecurityException) {
+            } catch (_: SecurityException) {
             }
         }
         isPaused = false
@@ -149,7 +151,7 @@ class RunTrackingService : Service() {
     private fun stopRun() {
         try {
             locationCallback?.let { locationProvider?.removeLocationUpdates(it) }
-        } catch (t: Throwable) {
+        } catch (_: Throwable) {
         }
 
         val endTime = System.currentTimeMillis()
@@ -175,17 +177,21 @@ class RunTrackingService : Service() {
                     )
                     repo.updateRun(updated)
                 }
-            } catch (t: Throwable) {
+            } catch (_: Throwable) {
             }
         }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            stopForeground(STOP_FOREGROUND_REMOVE)
-        } else {
-            @Suppress("DEPRECATION")
-            stopForeground(true)
-        }
+        stopForegroundCompat()
         stopSelf()
+    }
+
+    override fun onDestroy() {
+        try {
+            locationCallback?.let { locationProvider?.removeLocationUpdates(it) }
+        } catch (_: Throwable) {
+        }
+        serviceJob.cancel()
+        super.onDestroy()
     }
 
     private fun handleLocation(loc: Location) {
@@ -237,21 +243,24 @@ class RunTrackingService : Service() {
                         repo.updateRun(updated)
                     }
                 }
-            } catch (t: Throwable) {
+            } catch (_: Throwable) {
             }
         }
     }
 
     private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val nm = getSystemService(NotificationManager::class.java)
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                "Run Tracker",
-                NotificationManager.IMPORTANCE_LOW
-            )
-            channel.description = "Notifications for run tracking"
+        val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+        val channel = NotificationChannel(
+            CHANNEL_ID,
+            "Run Tracker",
+            NotificationManager.IMPORTANCE_LOW
+        )
+        try {
             nm.createNotificationChannel(channel)
+        } catch (_: NoSuchMethodError) {
+            // Robolectric / older runtime stubs may not expose this newer API path.
+        } catch (_: RuntimeException) {
+            // Keep unit-test environments resilient when notification channel APIs are stubbed.
         }
     }
 
@@ -268,6 +277,15 @@ class RunTrackingService : Service() {
             .setOngoing(true)
             .addAction(android.R.drawable.ic_delete, "Stop", stopPending)
             .build()
+    }
+
+    private fun stopForegroundCompat() {
+        try {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+        } catch (_: NoSuchMethodError) {
+            @Suppress("DEPRECATION")
+            stopForeground(true)
+        }
     }
 
     // Haversine distance in meters

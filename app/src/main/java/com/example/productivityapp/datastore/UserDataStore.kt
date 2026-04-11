@@ -1,14 +1,13 @@
 package com.example.productivityapp.datastore
 
 import android.content.Context
+import android.content.SharedPreferences
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.preferencesDataStoreFile
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.core.DataStore
-import androidx.security.crypto.EncryptedSharedPreferences
-import androidx.security.crypto.MasterKey
 import com.example.productivityapp.data.model.UserProfile
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -28,20 +27,8 @@ class UserDataStore(private val context: Context) {
         produceFile = { context.preferencesDataStoreFile("user_prefs") }
     )
 
-    private val masterKey: MasterKey by lazy {
-        MasterKey.Builder(context)
-            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-            .build()
-    }
-
-    private val securePrefs by lazy {
-        EncryptedSharedPreferences.create(
-            context,
-            "user_profile_encrypted",
-            masterKey,
-            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-        )
+    private val securePrefs: SharedPreferences by lazy(LazyThreadSafetyMode.NONE) {
+        createSecurePrefs(context.applicationContext)
     }
 
     // Preferences keys (water stored per-date as int)
@@ -154,6 +141,27 @@ class UserDataStore(private val context: Context) {
             preferredUnits = units,
             dailyStepGoal = stepGoal,
             dailyWaterGoalMl = waterGoal
+        )
+    }
+
+    /**
+     * AndroidX Security Crypto's current SharedPreferences wrapper is deprecated but still the
+     * compatibility-safe option for the existing on-device encrypted profile store in this app.
+     * We isolate it here so the rest of the repository stays warning-free and the storage format
+     * remains unchanged until a deliberate migration is planned.
+     */
+    @Suppress("DEPRECATION")
+    private fun createSecurePrefs(appContext: Context): SharedPreferences {
+        val masterKey = androidx.security.crypto.MasterKey.Builder(appContext)
+            .setKeyScheme(androidx.security.crypto.MasterKey.KeyScheme.AES256_GCM)
+            .build()
+
+        return androidx.security.crypto.EncryptedSharedPreferences.create(
+            appContext,
+            "user_profile_encrypted",
+            masterKey,
+            androidx.security.crypto.EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            androidx.security.crypto.EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
         )
     }
 }
