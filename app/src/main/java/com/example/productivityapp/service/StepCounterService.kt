@@ -16,6 +16,7 @@ import android.os.IBinder
 import androidx.annotation.VisibleForTesting
 import androidx.core.app.NotificationCompat
 import android.app.Service
+import android.content.pm.ServiceInfo
 import com.example.productivityapp.data.RepositoryProvider
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -88,7 +89,13 @@ class StepCounterService : Service(), SensorEventListener {
         val notification = buildNotification(
             if (sensorAvailable) "Step counter running" else "Step sensor unavailable — use manual entry"
         )
-        startForeground(NOTIF_ID, notification)
+        // specify the foreground service type to satisfy newer platform checks (targetSdk 31+)
+        try {
+            startForeground(NOTIF_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE)
+        } catch (t: Throwable) {
+            // fallback for older platform versions / test environments
+            startForeground(NOTIF_ID, notification)
+        }
 
         if (!sensorAvailable) {
             registrationActive = false
@@ -101,7 +108,11 @@ class StepCounterService : Service(), SensorEventListener {
             } ?: false
         } catch (_: SecurityException) {
             registrationActive = false
-            startForeground(NOTIF_ID, buildNotification("Activity recognition permission required"))
+            try {
+                startForeground(NOTIF_ID, buildNotification("Activity recognition permission required"), ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE)
+            } catch (t: Throwable) {
+                startForeground(NOTIF_ID, buildNotification("Activity recognition permission required"))
+            }
             return START_NOT_STICKY
         }
 
