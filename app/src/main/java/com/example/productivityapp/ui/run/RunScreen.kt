@@ -25,6 +25,13 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.sp
+// ...existing imports...
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -40,6 +47,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.clickable
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.productivityapp.data.RepositoryProvider
@@ -53,9 +61,9 @@ import kotlinx.coroutines.delay
 import java.util.Locale
 import kotlin.math.max
 
-@OptIn(ExperimentalPermissionsApi::class)
+@OptIn(ExperimentalPermissionsApi::class, androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
-fun RunScreen() {
+fun RunScreen(onBack: () -> Unit = {}) {
     val context = LocalContext.current
     val repo = RepositoryProvider.provideRunRepository(context)
     val uiStateStore = com.example.productivityapp.data.RepositoryProvider.provideUiStateStore(context)
@@ -89,13 +97,27 @@ fun RunScreen() {
         }
     }
 
-    Surface(modifier = Modifier.fillMaxSize()) {
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Run Tracker", fontWeight = FontWeight.SemiBold, fontSize = 18.sp) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Text("←", color = Color.White, fontSize = 18.sp)
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.primary, titleContentColor = Color.White)
+            )
+        },
+        containerColor = MaterialTheme.colorScheme.background
+    ) { innerPadding ->
+        Surface(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
             item {
                 Column {
                     Text("Run Tracker", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
@@ -259,6 +281,8 @@ fun RunScreen() {
             }
         }
     }
+}
+
 }
 
 @Composable

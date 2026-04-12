@@ -1,32 +1,11 @@
 package com.example.productivityapp.ui.home
 
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
-import androidx.compose.material3.Text
-import androidx.compose.material3.Surface
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
+/**
+ * RETIRED: Legacy `ui.home.HomeScreen` removed during cleanup.
+ *
+ * This file was replaced with a legacy marker to avoid accidental reuse. Active home
+ * dashboard is implemented at `com.example.productivityapp.app.ui.home.HomeScreen` and
+ * navigation now uses `com.example.productivityapp.navigation.AppRoutes`.
+ */
 
-@Composable
-fun HomeScreen(
-    onOpenSteps: () -> Unit,
-    onOpenRun: () -> Unit,
-    onOpenSleep: () -> Unit,
-    onOpenSettings: () -> Unit,
-    onOpenWater: () -> Unit
-) {
-    Surface(modifier = Modifier.fillMaxSize()) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text("ProductivityApp — Home")
-            Button(onClick = onOpenSteps, modifier = Modifier.padding(top = 8.dp)) { Text("Open Steps") }
-            Button(onClick = onOpenRun, modifier = Modifier.padding(top = 8.dp)) { Text("Open Run") }
-            Button(onClick = onOpenSleep, modifier = Modifier.padding(top = 8.dp)) { Text("Open Sleep") }
-            Button(onClick = onOpenWater, modifier = Modifier.padding(top = 8.dp)) { Text("Open Water") }
-            Button(onClick = onOpenSettings, modifier = Modifier.padding(top = 8.dp)) { Text("Settings") }
-        }
-    }
-}
-
+// Intentionally empty retirement marker.

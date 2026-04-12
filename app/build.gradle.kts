@@ -82,3 +82,36 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 }
 
+
+// Simple verification task to prevent accidental hard-coded route string usage.
+// Developers should use `com.example.productivityapp.navigation.AppRoutes` instead of
+// calling `navController.navigate("home")` or `composable("home")` with raw strings.
+tasks.register("verifyNoHardcodedRoutes") {
+    group = "verification"
+    description = "Fail build if hard-coded navigation route string literals are present (use AppRoutes)."
+    doLast {
+        val projectDir = project.projectDir
+        val srcFiles = fileTree("src") { include("**/*.kt") }
+        val pattern = Regex("\\b(navController\\.navigate|composable)\\(\\s*\"(home|steps|run|sleep|water|settings)\"\\s*\\)")
+        val violations = mutableListOf<String>()
+        srcFiles.files.forEach { f ->
+            val path = f.absolutePath
+            // skip our AppRoutes and legacy markers
+            if (path.contains("${File.separator}navigation${File.separator}AppRoutes.kt") || path.contains("${File.separator}app${File.separator}ui${File.separator}legacy")) return@forEach
+            val text = f.readText()
+            pattern.findAll(text).forEach { m ->
+                violations.add("${f.relativeTo(projectDir)}: ${m.value}")
+            }
+        }
+        if (violations.isNotEmpty()) {
+            throw org.gradle.api.GradleException("Hard-coded navigation routes found:\n" + violations.joinToString("\n"))
+        }
+    }
+}
+
+// Run the verification before any Kotlin compilation tasks to catch issues early.
+tasks.matching { it.name.endsWith("Kotlin") && it.name.startsWith("compile") }.configureEach {
+    dependsOn(tasks.named("verifyNoHardcodedRoutes"))
+}
+
+

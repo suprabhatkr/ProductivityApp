@@ -3,8 +3,10 @@ package com.example.productivityapp.app.ui.home
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -27,12 +29,16 @@ import java.time.format.DateTimeFormatter
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
+    onNavigateToSteps: () -> Unit,
+    onNavigateToRun: () -> Unit,
+    onNavigateToSleep: () -> Unit,
     onNavigateToWater: () -> Unit,
     onNavigateToSettings: () -> Unit,
     waterViewModel: WaterViewModel
 ) {
     val waterData by waterViewModel.todayData.collectAsState()
     val dateStr = LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE, d MMMM"))
+    val scrollState = rememberScrollState()
 
     LaunchedEffect(Unit) {
         waterViewModel.refresh()
@@ -64,21 +70,53 @@ fun HomeScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .verticalScroll(scrollState)
                 .padding(horizontal = 16.dp, vertical = 16.dp)
         ) {
             GreetingCard()
             Spacer(Modifier.height(16.dp))
-            SectionLabel("HEALTH")
+            SectionLabel("TODAY")
             Spacer(Modifier.height(8.dp))
             WaterIntakeCard(waterData = waterData, onClick = onNavigateToWater)
             Spacer(Modifier.height(16.dp))
-            SectionLabel("COMING SOON")
+            SectionLabel("TRACKERS")
             Spacer(Modifier.height(8.dp))
-            ComingSoonCard(emoji = "😴", title = "Sleep tracker")
+            FeatureCard(
+                emoji = "👟",
+                title = "Steps",
+                description = "Count steps, add manual entries, and start automatic tracking.",
+                accentColor = Color(0xFFFFF3E0),
+                titleColor = Color(0xFFB45309),
+                onClick = onNavigateToSteps,
+            )
             Spacer(Modifier.height(8.dp))
-            ComingSoonCard(emoji = "🏃", title = "Step counter")
+            FeatureCard(
+                emoji = "🏃",
+                title = "Run",
+                description = "Track outdoor runs, map your route, and replay recent sessions.",
+                accentColor = Color(0xFFF3E8FF),
+                titleColor = Color(0xFF7E22CE),
+                onClick = onNavigateToRun,
+            )
             Spacer(Modifier.height(8.dp))
-            ComingSoonCard(emoji = "🧘", title = "Meditation timer")
+            FeatureCard(
+                emoji = "😴",
+                title = "Sleep",
+                description = "Start sleep sessions, rate sleep quality, and review weekly history.",
+                accentColor = Color(0xFFECFDF5),
+                titleColor = Color(0xFF047857),
+                onClick = onNavigateToSleep,
+            )
+            Spacer(Modifier.height(16.dp))
+            SectionLabel("SETUP")
+            Spacer(Modifier.height(8.dp))
+            SettingsCard(onClick = onNavigateToSettings)
+            Spacer(Modifier.height(12.dp))
+            Text(
+                text = "All of the trackers above are live and connected to the current navigation graph.",
+                fontSize = 12.sp,
+                color = TextSecondary,
+            )
         }
     }
 }
@@ -93,7 +131,7 @@ private fun GreetingCard() {
         Column(modifier = Modifier.padding(14.dp)) {
             Text("Good day! 👋", fontWeight = FontWeight.Medium, fontSize = 15.sp, color = TextPrimary)
             Spacer(Modifier.height(2.dp))
-            Text("Track your habits and stay productive.", fontSize = 13.sp, color = TextSecondary)
+            Text("Track your steps, runs, sleep, water, and settings from one place.", fontSize = 13.sp, color = TextSecondary)
         }
     }
 }
@@ -154,6 +192,47 @@ private fun WaterIntakeCard(waterData: WaterDayData, onClick: () -> Unit) {
 }
 
 @Composable
+private fun FeatureCard(
+    emoji: String,
+    title: String,
+    description: String,
+    accentColor: Color,
+    titleColor: Color,
+    onClick: () -> Unit,
+) {
+    Card(
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = CardBg),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+    ) {
+        Row(
+            modifier = Modifier.padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(accentColor),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(emoji, fontSize = 22.sp)
+            }
+            Spacer(Modifier.width(14.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(title, fontWeight = FontWeight.Medium, fontSize = 14.sp, color = titleColor)
+                Spacer(Modifier.height(4.dp))
+                Text(description, fontSize = 12.sp, color = TextSecondary)
+            }
+            Spacer(Modifier.width(8.dp))
+            Text("›", fontSize = 22.sp, color = TextTertiary)
+        }
+    }
+}
+
+@Composable
 private fun LinearProgressBar(fraction: Float) {
     Box(
         modifier = Modifier
@@ -173,38 +252,39 @@ private fun LinearProgressBar(fraction: Float) {
 }
 
 @Composable
-private fun ComingSoonCard(emoji: String, title: String) {
+private fun SettingsCard(onClick: () -> Unit) {
     Card(
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFF9FAFB)),
-        modifier = Modifier.fillMaxWidth()
+        colors = CardDefaults.cardColors(containerColor = CardBg),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
     ) {
         Row(
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier.padding(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
                 modifier = Modifier
-                    .size(38.dp)
-                    .clip(RoundedCornerShape(9.dp))
+                    .size(44.dp)
+                    .clip(RoundedCornerShape(10.dp))
                     .background(Color(0xFFF3F4F6)),
                 contentAlignment = Alignment.Center
             ) {
-                Text(emoji, fontSize = 18.sp)
+                Text("⚙️", fontSize = 20.sp)
             }
-            Spacer(Modifier.width(12.dp))
-            Column {
-                Text(title, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = TextTertiary)
-                Spacer(Modifier.height(2.dp))
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(Color(0xFFF3F4F6))
-                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                ) {
-                    Text("soon", fontSize = 10.sp, color = TextTertiary)
-                }
+            Spacer(Modifier.width(14.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Settings", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = TextPrimary)
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "Update profile, preferred units, and your daily water and step goals.",
+                    fontSize = 12.sp,
+                    color = TextSecondary
+                )
             }
+            Spacer(Modifier.width(8.dp))
+            Text("›", fontSize = 22.sp, color = TextTertiary)
         }
     }
 }

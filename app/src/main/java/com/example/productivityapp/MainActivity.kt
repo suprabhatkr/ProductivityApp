@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
 import com.example.productivityapp.ui.debug.MigrationStatusOverlay
+import com.example.productivityapp.navigation.AppRoutes
 import com.example.productivityapp.ui.run.RunScreen
 import com.example.productivityapp.ui.sleep.SleepScreen
 import com.example.productivityapp.ui.steps.StepScreen
@@ -40,24 +41,27 @@ class MainActivity : ComponentActivity() {
                 // Layer UI so debug overlays can be shown on top of app content
                 Box(modifier = Modifier.fillMaxSize()) {
 
-                    NavHost(navController = navController, startDestination = "home") {
-                    composable("home") {
+                    NavHost(navController = navController, startDestination = AppRoutes.HOME) {
+                    composable(AppRoutes.HOME) {
                         val waterVm: WaterViewModel = viewModel()
                         AppHomeScreen(
-                            onNavigateToWater = { navController.navigate("water") },
-                            onNavigateToSettings = { navController.navigate("settings") },
+                            onNavigateToSteps = { navController.navigate(AppRoutes.STEPS) },
+                            onNavigateToRun = { navController.navigate(AppRoutes.RUN) },
+                            onNavigateToSleep = { navController.navigate(AppRoutes.SLEEP) },
+                            onNavigateToWater = { navController.navigate(AppRoutes.WATER) },
+                            onNavigateToSettings = { navController.navigate(AppRoutes.SETTINGS) },
                             waterViewModel = waterVm
                         )
                     }
 
-                    composable("steps") { StepScreen() }
-                    composable("run") { RunScreen() }
-                    composable("sleep") { SleepScreen() }
-                    composable("water") {
+                    composable(AppRoutes.STEPS) { StepScreen(onBack = { navController.popBackStack() }) }
+                    composable(AppRoutes.RUN) { RunScreen(onBack = { navController.popBackStack() }) }
+                    composable(AppRoutes.SLEEP) { SleepScreen(onBack = { navController.popBackStack() }) }
+                    composable(AppRoutes.WATER) {
                         val waterVm: com.example.productivityapp.app.viewmodel.WaterViewModel = viewModel()
                         AppWaterScreen(onBack = { navController.popBackStack() }, viewModel = waterVm)
                     }
-                    composable("settings") {
+                    composable(AppRoutes.SETTINGS) {
                         val settingsVm: SettingsViewModel = viewModel(
                             factory = SettingsViewModelFactory(
                                 RepositoryProvider.provideUserProfileRepository(this@MainActivity)

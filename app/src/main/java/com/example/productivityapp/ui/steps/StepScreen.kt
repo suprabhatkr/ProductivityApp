@@ -25,6 +25,13 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.clickable
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -54,7 +61,7 @@ enum class StepPermissionUiState {
 
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
-fun StepScreen() {
+fun StepScreen(onBack: () -> Unit = {}) {
     val context = LocalContext.current
     val repo = RepositoryProvider.provideStepRepository(context)
     val userProfileRepo = RepositoryProvider.provideUserProfileRepository(context)
@@ -115,10 +122,12 @@ fun StepScreen() {
             val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null))
             context.startActivity(intent)
         },
+        onBack = onBack,
     )
 }
 
 @Composable
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 fun StepScreenContent(
     steps: Int,
     dailyGoal: Int,
@@ -131,6 +140,7 @@ fun StepScreenContent(
     onStopService: () -> Unit,
     onRequestPermission: () -> Unit,
     onOpenSettings: () -> Unit,
+    onBack: () -> Unit = {},
 ) {
     var customManualSteps by rememberSaveable { mutableStateOf("") }
     val goalProgress = if (dailyGoal > 0) (steps.toFloat() / dailyGoal.toFloat()).coerceIn(0f, 1f) else 0f
@@ -143,14 +153,31 @@ fun StepScreenContent(
         list
     }
 
-    Surface(modifier = Modifier.fillMaxSize()) {
-        Column(
-            modifier = Modifier
-                .padding(com.example.productivityapp.ui.theme.Spacing.large)
-                .fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(com.example.productivityapp.ui.theme.Spacing.large),
-        ) {
-            StepsHeader(steps = steps, dailyGoal = dailyGoal)
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Steps", fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, fontSize = 18.sp) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Text("←", color = Color.White, fontSize = 18.sp)
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    titleContentColor = Color.White
+                )
+            )
+        },
+        containerColor = MaterialTheme.colorScheme.background
+    ) { innerPadding ->
+        Surface(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
+            Column(
+                modifier = Modifier
+                    .padding(com.example.productivityapp.ui.theme.Spacing.large)
+                    .fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(com.example.productivityapp.ui.theme.Spacing.large),
+            ) {
+                StepsHeader(steps = steps, dailyGoal = dailyGoal)
             StepsProgress(steps = steps, dailyGoal = dailyGoal)
             StepsWeeklyChart(values = weekly, dailyGoal = dailyGoal)
 
@@ -252,3 +279,6 @@ fun StepScreenContent(
     }
 }
 
+
+
+}

@@ -7,7 +7,6 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.preferencesDataStoreFile
-import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.core.DataStore
 import androidx.datastore.core.DataStoreFactory
 import com.example.productivityapp.data.model.UserProfile
@@ -40,13 +39,39 @@ class UserDataStore(
     private val injectedSecurePrefs: SharedPreferences? = null,
 ) {
 
-    private val dataStore: DataStore<Preferences> = injectedDataStore ?: PreferenceDataStoreFactory.create(
-        scope = CoroutineScope(Dispatchers.IO + Job()),
-        produceFile = { context.preferencesDataStoreFile("user_prefs") }
-    )
+    companion object {
+        // Keep a memoized proto store for the water store file. The Preferences DataStore
+        // singleton is provided via the top-level `Context.userPreferencesDataStore` delegate
+        // (see DataStoreSingletons.kt). We still allow injection of a DataStore for tests.
+        @Volatile
+        private var sharedWaterProtoStore: DataStore<WaterStoreProto>? = null
+
+        internal fun provideWaterProtoStore(context: Context, injected: DataStore<WaterStoreProto>?): DataStore<WaterStoreProto> {
+            injected?.let { return it }
+            return sharedWaterProtoStore ?: synchronized(this) {
+                sharedWaterProtoStore ?: DataStoreFactory.create(
+                    serializer = WaterStoreSerializer,
+                    scope = CoroutineScope(Dispatchers.IO + Job()),
+                    produceFile = { context.preferencesDataStoreFile("water_store.pb") }
+                ).also { sharedWaterProtoStore = it }
+            }
+        }
+    }
+
+    // Prefer the top-level Context.userPreferencesDataStore singleton. If a test injects
+    // a DataStore instance, use that instead.
+    private val dataStore: DataStore<Preferences> = injectedDataStore
+        ?: context.applicationContext.userPreferencesDataStore
 
     private val securePrefs: SharedPreferences by lazy(LazyThreadSafetyMode.NONE) {
         injectedSecurePrefs ?: createSecurePrefs(context.applicationContext)
+    }
+
+    // Single instance of the proto-backed WaterStore DataStore. Creating multiple
+    // DataStore instances for the same file will crash at runtime, so memoize here.
+    // Use a shared proto store instance for the water store file as well.
+    private val waterProtoStore: DataStore<WaterStoreProto> by lazy {
+        provideWaterProtoStore(context.applicationContext, injectedWaterProtoStore)
     }
 
     // Preferences keys (legacy water stored per-date as int / JSON entries)
@@ -106,12 +131,8 @@ class UserDataStore(
         }
     }
 
-    private fun createWaterProtoStore(): DataStore<WaterStoreProto> =
-        injectedWaterProtoStore ?: DataStoreFactory.create(
-            serializer = WaterStoreSerializer,
-            scope = CoroutineScope(Dispatchers.IO + Job()),
-            produceFile = { context.preferencesDataStoreFile("water_store.pb") }
-        )
+    // Keep a compatibility wrapper for existing call sites; return the memoized instance.
+    private fun createWaterProtoStore(): DataStore<WaterStoreProto> = waterProtoStore
 
     // Migrate legacy JSON entries (stored in Preferences) to the proto store for a single date.
     private fun performLegacyMigrationIfPresent(date: String) {

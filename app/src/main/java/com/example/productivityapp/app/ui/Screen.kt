@@ -1,10 +1,4 @@
 package com.example.productivityapp.app.ui
 
-sealed class Screen {
-    object Home : Screen()
-    object WaterIntake : Screen()
-    object Steps : Screen()
-    object Run : Screen()
-    object Sleep : Screen()
-    object Settings : Screen()
-}
+// Screen.kt moved to `app.ui.legacy.Screen` to isolate legacy route models.
+// Active navigation uses `com.example.productivityapp.navigation.AppRoutes`.

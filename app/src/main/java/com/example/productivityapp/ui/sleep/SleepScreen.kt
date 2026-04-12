@@ -21,6 +21,13 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.clickable
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -45,8 +52,9 @@ import com.example.productivityapp.viewmodel.SleepViewModel
 import com.example.productivityapp.viewmodel.SleepViewModelFactory
 import kotlin.math.roundToInt
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
-fun SleepScreen() {
+fun SleepScreen(onBack: () -> Unit = {}) {
     val context = LocalContext.current
     val repo = RepositoryProvider.provideSleepRepository(context)
     val vm: SleepViewModel = viewModel(factory = SleepViewModelFactory(repo))
@@ -71,9 +79,11 @@ fun SleepScreen() {
         onStopSleep = vm::stopSleep,
         onSubmitReview = vm::submitSleepReview,
         onDismissReview = vm::dismissSleepReview,
+        onBack = onBack,
     )
 }
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun SleepScreenContent(
     sessions: List<SleepEntity>,
@@ -88,17 +98,32 @@ fun SleepScreenContent(
     onStopSleep: () -> Unit,
     onSubmitReview: (Int, String) -> Unit,
     onDismissReview: () -> Unit,
+    onBack: () -> Unit = {},
 ) {
     var quality by rememberSaveable(pendingReviewSession?.id) { mutableStateOf(4) }
     var notes by rememberSaveable(pendingReviewSession?.id) { mutableStateOf("") }
 
-    Surface(modifier = Modifier.fillMaxSize()) {
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Sleep Tracker", fontWeight = FontWeight.SemiBold, fontSize = 18.sp) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Text("←", color = Color.White, fontSize = 18.sp)
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.primary, titleContentColor = Color.White)
+            )
+        },
+        containerColor = MaterialTheme.colorScheme.background
+    ) { innerPadding ->
+        Surface(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text("Sleep Tracker", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
@@ -151,6 +176,7 @@ fun SleepScreenContent(
 }
 
 
+}
 @Composable
 private fun SleepTipsCard(onStartNap: () -> Unit) {
     Card(colors = CardDefaults.cardColors(containerColor = com.example.productivityapp.ui.theme.SleepGreen)) {
