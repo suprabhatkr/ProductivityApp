@@ -41,11 +41,12 @@ class MainActivity : ComponentActivity() {
                 // Layer UI so debug overlays can be shown on top of app content
                 Box(modifier = Modifier.fillMaxSize()) {
 
-                    NavHost(navController = navController, startDestination = AppRoutes.HOME) {
+                        NavHost(navController = navController, startDestination = AppRoutes.HOME) {
                     composable(AppRoutes.HOME) {
                         val waterVm: WaterViewModel = viewModel()
                         AppHomeScreen(
                             onNavigateToSteps = { navController.navigate(AppRoutes.STEPS) },
+                                    onNavigateToStepsLegacy = { navController.navigate(AppRoutes.STEPS_LEGACY) },
                             onNavigateToRun = { navController.navigate(AppRoutes.RUN) },
                             onNavigateToSleep = { navController.navigate(AppRoutes.SLEEP) },
                             onNavigateToWater = { navController.navigate(AppRoutes.WATER) },
@@ -54,7 +55,9 @@ class MainActivity : ComponentActivity() {
                         )
                     }
 
-                    composable(AppRoutes.STEPS) { StepScreen(onBack = { navController.popBackStack() }) }
+                    // Show the new ring-style screen at the canonical STEPS route and keep the older UI available
+                    composable(AppRoutes.STEPS) { com.example.productivityapp.ui.steps.StepScreen(onBack = { navController.popBackStack() }) }
+                    composable(AppRoutes.STEPS_LEGACY) { com.example.productivityapp.ui.step.StepScreen(onBack = { navController.popBackStack() }) }
                     composable(AppRoutes.RUN) { RunScreen(onBack = { navController.popBackStack() }) }
                     composable(AppRoutes.SLEEP) { SleepScreen(onBack = { navController.popBackStack() }) }
                     composable(AppRoutes.WATER) {
