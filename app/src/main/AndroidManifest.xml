@@ -30,7 +30,7 @@
         <service
             android:name=".service.StepCounterService"
             android:exported="false"
-            android:foregroundServiceType="connectedDevice" />
+            android:foregroundServiceType="dataSync" />
 
         <service
             android:name=".service.RunTrackingService"

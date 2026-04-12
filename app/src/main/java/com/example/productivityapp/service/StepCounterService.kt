@@ -91,7 +91,7 @@ class StepCounterService : Service(), SensorEventListener {
         )
         // specify the foreground service type to satisfy newer platform checks (targetSdk 31+)
         try {
-            startForeground(NOTIF_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE)
+            startForeground(NOTIF_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
         } catch (t: Throwable) {
             // fallback for older platform versions / test environments
             startForeground(NOTIF_ID, notification)
@@ -109,7 +109,7 @@ class StepCounterService : Service(), SensorEventListener {
         } catch (_: SecurityException) {
             registrationActive = false
             try {
-                startForeground(NOTIF_ID, buildNotification("Activity recognition permission required"), ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE)
+                startForeground(NOTIF_ID, buildNotification("Activity recognition permission required"), ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
             } catch (t: Throwable) {
                 startForeground(NOTIF_ID, buildNotification("Activity recognition permission required"))
             }
