@@ -110,15 +110,21 @@ fun StepScreen(onBack: () -> Unit = {}) {
         onStartService = {
             // Ensure activity recognition permission is granted before starting the foreground service.
             if (permissionState.status is PermissionStatus.Granted) {
-                val intent = Intent(context, StepCounterService::class.java).apply { action = StepCounterService.ACTION_START }
-                ContextCompat.startForegroundService(context, intent)
+                // prevent double-clicks by setting running state first; revert on failure
                 vm.setServiceRunning(true)
                 try {
-                    val prefs = context.applicationContext.getSharedPreferences("step_service_prefs", Context.MODE_PRIVATE)
-                    val editor = prefs.edit() as android.content.SharedPreferences.Editor
-                    editor.putBoolean("ui_service_running", true)
-                    editor.apply()
-                } catch (_: Throwable) {}
+                    val intent = Intent(context, StepCounterService::class.java).apply { action = StepCounterService.ACTION_START }
+                    ContextCompat.startForegroundService(context, intent)
+                    try {
+                        val prefs = context.applicationContext.getSharedPreferences("step_service_prefs", Context.MODE_PRIVATE)
+                        val editor = prefs.edit() as android.content.SharedPreferences.Editor
+                        editor.putBoolean("ui_service_running", true)
+                        editor.apply()
+                    } catch (_: Throwable) {}
+                } catch (t: Throwable) {
+                    vm.setServiceRunning(false)
+                    permissionState.launchPermissionRequest()
+                }
             } else {
                 // Request permission; UI will update and show rationale/settings flow
                 permissionState.launchPermissionRequest()
