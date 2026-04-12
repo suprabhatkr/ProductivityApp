@@ -89,13 +89,9 @@ class StepCounterService : Service(), SensorEventListener {
         val notification = buildNotification(
             if (sensorAvailable) "Step counter running" else "Step sensor unavailable — use manual entry"
         )
-        // specify the foreground service type to satisfy newer platform checks (targetSdk 31+)
-        try {
-            startForeground(NOTIF_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
-        } catch (t: Throwable) {
-            // fallback for older platform versions / test environments
-            startForeground(NOTIF_ID, notification)
-        }
+        // dataSync type satisfies the API 34+ requirement of declaring a foreground service type.
+        // FOREGROUND_SERVICE_DATA_SYNC is a normal (install-time) permission with no runtime grant required.
+        startForeground(NOTIF_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
 
         if (!sensorAvailable) {
             registrationActive = false
@@ -108,11 +104,7 @@ class StepCounterService : Service(), SensorEventListener {
             } ?: false
         } catch (_: SecurityException) {
             registrationActive = false
-            try {
-                startForeground(NOTIF_ID, buildNotification("Activity recognition permission required"), ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
-            } catch (t: Throwable) {
-                startForeground(NOTIF_ID, buildNotification("Activity recognition permission required"))
-            }
+            startForeground(NOTIF_ID, buildNotification("Activity recognition permission required"), ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
             return START_NOT_STICKY
         }
 
