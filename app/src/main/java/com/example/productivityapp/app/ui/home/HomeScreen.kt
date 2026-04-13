@@ -30,6 +30,7 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun HomeScreen(
     onNavigateToSteps: () -> Unit,
+    onNavigateToStepsLegacy: () -> Unit,
     onNavigateToRun: () -> Unit,
     onNavigateToSleep: () -> Unit,
     onNavigateToWater: () -> Unit,
@@ -89,6 +90,8 @@ fun HomeScreen(
                 titleColor = Color(0xFFB45309),
                 onClick = onNavigateToSteps,
             )
+            Spacer(Modifier.height(6.dp))
+            TextButton(onClick = onNavigateToStepsLegacy) { Text("Open legacy Steps view") }
             Spacer(Modifier.height(8.dp))
             FeatureCard(
                 emoji = "🏃",

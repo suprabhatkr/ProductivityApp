@@ -6,6 +6,7 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
 import com.example.productivityapp.data.entities.StepEntity
+import com.example.productivityapp.data.entities.StepSampleEntity
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -30,5 +31,18 @@ interface StepDao {
 
     @Query("DELETE FROM steps WHERE date = :date")
     suspend fun deleteByDate(date: String)
+
+    // --- step_samples table operations ---
+    @Query("SELECT * FROM step_samples WHERE date = :date ORDER BY tsMs ASC")
+    fun observeSamplesByDate(date: String): kotlinx.coroutines.flow.Flow<List<StepSampleEntity>>
+
+    @Query("SELECT * FROM step_samples WHERE date = :date ORDER BY tsMs ASC")
+    suspend fun getSamplesByDate(date: String): List<StepSampleEntity>
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertSample(sample: StepSampleEntity): Long
+
+    @Query("DELETE FROM step_samples WHERE date = :date")
+    suspend fun deleteSamplesByDate(date: String)
 }
 

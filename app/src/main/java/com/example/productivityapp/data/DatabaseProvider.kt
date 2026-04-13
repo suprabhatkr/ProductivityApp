@@ -31,11 +31,21 @@ object DatabaseProvider {
                 }
             }
 
+            val MIGRATION_2_3 = object : Migration(2, 3) {
+                override fun migrate(db: SupportSQLiteDatabase) {
+                    // create step_samples table
+                    db.execSQL(
+                        "CREATE TABLE IF NOT EXISTS step_samples (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, date TEXT NOT NULL, tsMs INTEGER NOT NULL, delta INTEGER NOT NULL, source TEXT NOT NULL)"
+                    )
+                    db.execSQL("CREATE INDEX IF NOT EXISTS index_step_samples_date ON step_samples(date)")
+                }
+            }
+
             val instance = Room.databaseBuilder(
                 context.applicationContext,
                 AppDatabase::class.java,
                 "productivity-db"
-            ).addMigrations(MIGRATION_1_2).build()
+            ).addMigrations(MIGRATION_1_2, MIGRATION_2_3).build()
             INSTANCE = instance
             instance
         }

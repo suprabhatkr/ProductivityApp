@@ -43,11 +43,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
+
 import android.util.Log
+import androidx.compose.ui.graphics.drawscope.Stroke
 import android.widget.Toast
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.fillMaxHeight
+
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.unit.Dp
@@ -122,33 +126,40 @@ fun StepScreen(onBack: () -> Unit = {}) {
                             when (permissionState.status) {
                                 is PermissionStatus.Granted -> {
                                     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-                                        Row(modifier = Modifier.padding(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                            if (!serviceRunning) {
-                                                        Button(onClick = {
-                                                            // optimistically mark running to avoid duplicate clicks before UI recomposition
-                                                            vm.setServiceRunning(true)
-                                                            try {
-                                                                val intent = Intent(context, StepCounterService::class.java).apply { action = StepCounterService.ACTION_START }
-                                                                context.startForegroundService(intent)
-                                                            } catch (t: Throwable) {
-                                                                vm.setServiceRunning(false) // revert on failure
-                                                                Log.e("StepScreen", "Failed to start StepCounterService", t)
-                                                                Toast.makeText(context, "Cannot start step service: ${t.localizedMessage}", Toast.LENGTH_LONG).show()
-                                                            }
-                                                        }) { Text("Start Service") }
-                                            } else {
-                                                        Button(onClick = {
-                                                            try {
-                                                                val intent = Intent(context, StepCounterService::class.java).apply { action = StepCounterService.ACTION_STOP }
-                                                                context.startService(intent)
-                                                                vm.setServiceRunning(false)
-                                                            } catch (t: Throwable) {
-                                                                Log.e("StepScreen", "Failed to stop StepCounterService", t)
-                                                                Toast.makeText(context, "Cannot stop step service: ${t.localizedMessage}", Toast.LENGTH_LONG).show()
-                                                            }
-                                                        }) { Text("Stop Service") }
-                                            }
-                                        }
+                                        val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
+                        val startInFlightState = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+                        Row(modifier = Modifier.padding(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            if (!serviceRunning) {
+                                Button(enabled = !startInFlightState.value, onClick = {
+                                    if (startInFlightState.value) return@Button
+                                    startInFlightState.value = true
+                                    // optimistically mark running to avoid duplicate clicks before UI recomposition
+                                    Log.i("StepScreen", "Start requested (legacy)")
+                                    vm.setServiceRunning(true)
+                                    try {
+                                        val intent = Intent(context, StepCounterService::class.java).apply { action = StepCounterService.ACTION_START }
+                                        context.startForegroundService(intent)
+                                    } catch (t: Throwable) {
+                                        vm.setServiceRunning(false) // revert on failure
+                                        startInFlightState.value = false
+                                        Log.e("StepScreen", "Failed to start StepCounterService", t)
+                                        Toast.makeText(context, "Cannot start step service: ${t.localizedMessage}", Toast.LENGTH_LONG).show()
+                                    }
+                                    coroutineScope.launch { kotlinx.coroutines.delay(500); if (!serviceRunning) startInFlightState.value = false }
+                                }) { Text("Start Service") }
+                            } else {
+                                Button(onClick = {
+                                    try {
+                                        val intent = Intent(context, StepCounterService::class.java).apply { action = StepCounterService.ACTION_STOP }
+                                        context.startService(intent)
+                                        vm.setServiceRunning(false)
+                                    } catch (t: Throwable) {
+                                        Log.e("StepScreen", "Failed to stop StepCounterService", t)
+                                        Toast.makeText(context, "Cannot stop step service: ${t.localizedMessage}", Toast.LENGTH_LONG).show()
+                                    }
+                                }) { Text("Stop Service") }
+                            }
+                        }
                                     }
                                 }
                                 is PermissionStatus.Denied -> {

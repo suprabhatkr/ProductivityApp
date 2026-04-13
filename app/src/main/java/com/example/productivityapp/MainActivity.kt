@@ -77,7 +77,7 @@ class MainActivity : ComponentActivity() {
                     }
                 }
                     // small debug overlay to show migration/legacy status for manual QA
-                    MigrationStatusOverlay(appContext = ctx)
+                    // MigrationStatusOverlay(appContext = ctx)
                 }
             }
         }

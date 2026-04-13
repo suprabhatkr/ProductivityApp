@@ -24,6 +24,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import android.util.Log
 
 /**
  * Foreground service that listens to the device step counter sensor (TYPE_STEP_COUNTER)
@@ -58,6 +59,7 @@ class StepCounterService : Service(), SensorEventListener {
     private var serviceScope = CoroutineScope(Dispatchers.Default + Job())
     private val dateFormatter = DateTimeFormatter.ISO_LOCAL_DATE
     @Volatile private var registrationActive = false
+    @Volatile private var foregroundStarted = false
 
     @VisibleForTesting
     internal var currentDateProvider: () -> String = { LocalDate.now().format(dateFormatter) }
@@ -85,13 +87,21 @@ class StepCounterService : Service(), SensorEventListener {
     }
 
     private fun startForegroundServiceWithNotification(): Int {
+        // Avoid doing full start sequence multiple times if already started
+        if (foregroundStarted) {
+            Log.i("StepCounterService", "Start requested but service already foregrounded — ignoring duplicate start")
+            return START_STICKY
+        }
+
         val sensorAvailable = hasUsableStepSensor()
         val notification = buildNotification(
             if (sensorAvailable) "Step counter running" else "Step sensor unavailable — use manual entry"
         )
         // dataSync type satisfies the API 34+ requirement of declaring a foreground service type.
         // FOREGROUND_SERVICE_DATA_SYNC is a normal (install-time) permission with no runtime grant required.
+        Log.i("StepCounterService", "Calling startForeground with dataSync type")
         startForeground(NOTIF_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+        foregroundStarted = true
 
         if (!sensorAvailable) {
             registrationActive = false
@@ -101,10 +111,14 @@ class StepCounterService : Service(), SensorEventListener {
         try {
             registrationActive = registerSensorUpdatesOverride?.invoke() ?: stepSensor?.let { sensor ->
                 sensorManager.registerListener(this, sensor, SensorManager.SENSOR_DELAY_NORMAL)
+                true
             } ?: false
+            if (registrationActive) Log.i("StepCounterService", "Sensor listener registered")
         } catch (_: SecurityException) {
             registrationActive = false
+            // update notification to inform user
             startForeground(NOTIF_ID, buildNotification("Activity recognition permission required"), ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+            foregroundStarted = true // still foregrounded with permission message
             return START_NOT_STICKY
         }
 
@@ -119,6 +133,7 @@ class StepCounterService : Service(), SensorEventListener {
             // ignore
         }
         registrationActive = false
+        foregroundStarted = false
         stopForegroundCompat()
         stopSelf()
     }
@@ -131,6 +146,7 @@ class StepCounterService : Service(), SensorEventListener {
         } catch (_: Throwable) {
         }
         registrationActive = false
+        foregroundStarted = false
     }
 
     override fun onBind(intent: Intent?): IBinder? = null

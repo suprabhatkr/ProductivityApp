@@ -35,12 +35,38 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.Icon
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.FitnessCenter
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.Scaffold
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import com.example.productivityapp.ui.theme.StepsAmber
+import com.example.productivityapp.ui.theme.StepsAmberSoft
+import com.example.productivityapp.ui.theme.TrackBeige
+import com.example.productivityapp.ui.theme.StepsSurface
+import com.example.productivityapp.ui.theme.StepsBackground
+import com.example.productivityapp.ui.theme.BlendLight
+import com.example.productivityapp.ui.theme.BlendPrimaryDark
+import com.example.productivityapp.ui.theme.BlendDarkBackground
+import com.example.productivityapp.ui.theme.TextPrimary
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.foundation.shape.CircleShape
+import android.os.Build
+import androidx.compose.ui.graphics.toArgb
+import android.view.View
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.offset
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
@@ -64,6 +90,20 @@ import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.PermissionStatus
 import com.google.accompanist.permissions.rememberPermissionState
 import androidx.compose.ui.Alignment
+import android.util.Log
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+
+@Composable
+fun StatIcon(label: String, modifier: Modifier = Modifier) {
+    val image = when (label) {
+        "Active" -> Icons.Filled.FitnessCenter
+        "Distance" -> Icons.Filled.LocationOn
+        "Active time" -> Icons.Filled.Timer
+        else -> Icons.Filled.Info
+    }
+    Icon(imageVector = image, contentDescription = label, tint = MaterialTheme.colorScheme.onSurface, modifier = modifier)
+}
 
 enum class StepPermissionUiState {
     Granted,
@@ -99,8 +139,13 @@ fun StepScreen(onBack: () -> Unit = {}) {
         }
     }
 
+    val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
+    val startInFlightState = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    val todaySegmentsState = vm.todaySegments.collectAsState()
+
     StepScreenContent(
         steps = steps.value,
+        todaySegments = todaySegmentsState.value,
         dailyGoal = dailyGoal.value,
         weeklySteps = weeklyStepsState.value,
         serviceRunning = serviceRunning.value,
@@ -108,9 +153,12 @@ fun StepScreen(onBack: () -> Unit = {}) {
         hasStepSensor = hasStepSensor,
         onAddManualSteps = { vm.addManualSteps(it) },
         onStartService = {
+            if (startInFlightState.value) return@StepScreenContent
             // Ensure activity recognition permission is granted before starting the foreground service.
             if (permissionState.status is PermissionStatus.Granted) {
+                startInFlightState.value = true
                 // prevent double-clicks by setting running state first; revert on failure
+                Log.i("StepScreen", "Start requested (compose)")
                 vm.setServiceRunning(true)
                 try {
                     val intent = Intent(context, StepCounterService::class.java).apply { action = StepCounterService.ACTION_START }
@@ -123,13 +171,17 @@ fun StepScreen(onBack: () -> Unit = {}) {
                     } catch (_: Throwable) {}
                 } catch (t: Throwable) {
                     vm.setServiceRunning(false)
+                    startInFlightState.value = false
                     permissionState.launchPermissionRequest()
                 }
+                coroutineScope.launch { kotlinx.coroutines.delay(500); if (!serviceRunning.value) startInFlightState.value = false }
             } else {
                 // Request permission; UI will update and show rationale/settings flow
                 permissionState.launchPermissionRequest()
             }
         },
+
+
 
         onStopService = {
             val intent = Intent(context, StepCounterService::class.java).apply { action = StepCounterService.ACTION_STOP }
@@ -157,6 +209,7 @@ fun StepScreenContent(
     steps: Int,
     dailyGoal: Int,
     weeklySteps: List<Int> = emptyList(),
+    todaySegments: List<Pair<String, Int>> = emptyList(),
     serviceRunning: Boolean,
     permissionUiState: StepPermissionUiState,
     hasStepSensor: Boolean,
@@ -168,7 +221,12 @@ fun StepScreenContent(
     onBack: () -> Unit = {},
 ) {
     var customManualSteps by rememberSaveable { mutableStateOf("") }
-    val goalProgress = if (dailyGoal > 0) (steps.toFloat() / dailyGoal.toFloat()).coerceIn(0f, 1f) else 0f
+    var showManualDialog by rememberSaveable { mutableStateOf(false) }
+    val isDarkMode = androidx.compose.foundation.isSystemInDarkTheme()
+    val stepCardBg = if (isDarkMode) BlendPrimaryDark else BlendLight
+    val contentBg = MaterialTheme.colorScheme.background
+    val topBarBg = if (isDarkMode) BlendPrimaryDark else BlendLight
+    val topBarTitleColor = if (isDarkMode) Color.White else TextPrimary
     val weekly = if (weeklySteps.isNotEmpty()) weeklySteps else remember(steps, dailyGoal) {
         val list = MutableList(7) { i ->
             val factor = 0.4f + (i * 0.09f)
@@ -181,78 +239,96 @@ fun StepScreenContent(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Steps", fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, fontSize = 18.sp) },
+                title = { Text("Steps", fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, fontSize = 18.sp, color = topBarTitleColor) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Text("←", color = Color.White, fontSize = 18.sp)
+                        Icon(imageVector = Icons.Filled.ArrowBack, contentDescription = "Back", tint = topBarTitleColor)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = Color.White
-                )
+                    containerColor = topBarBg,
+                    titleContentColor = topBarTitleColor
+                ),
+                modifier = Modifier.height(85.dp)
             )
         },
-        containerColor = MaterialTheme.colorScheme.background
+        containerColor = contentBg
     ) { innerPadding ->
-        Surface(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
-            val ringHeight = 300.dp
+        Surface(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding),
+            color = contentBg
+        ) {
+            val ringHeight = 280.dp
+            val ringTopOffset = 16.dp
 
             Box(modifier = Modifier.fillMaxSize()) {
                 // Scrollable content below the pinned ring
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(top = ringHeight)
+                        .padding(top = ringHeight + ringTopOffset)
                         .padding(com.example.productivityapp.ui.theme.Spacing.large),
                     verticalArrangement = Arrangement.spacedBy(com.example.productivityapp.ui.theme.Spacing.large),
                 ) {
                     item {
-                        StepsProgress(steps = steps, dailyGoal = dailyGoal)
+                        // Today's activity breakdown (morning / afternoon / evening)
+                        val segmentsToShow = if (todaySegments.isNotEmpty()) todaySegments else listOf(
+                            "Morning" to (steps * 0.35f).toInt(),
+                            "Afternoon" to (steps * 0.30f).toInt(),
+                            "Evening" to (steps * 0.35f).toInt()
+                        )
+                        TodayActivity(
+                            segments = segmentsToShow
+                        )
+                    }
+
+                    item {
+                        // Small analytics row: calories, distance, active time
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = stepCardBg)
+                        ) {
+                            Row(modifier = Modifier.padding(12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Card(
+                                    modifier = Modifier.weight(1f),
+                                    colors = CardDefaults.cardColors(containerColor = if (isDarkMode) com.example.productivityapp.ui.theme.BlendPrimaryDark else MaterialTheme.colorScheme.surface)
+                                ) {
+                                    Column(modifier = Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                        StatIcon("Active", modifier = Modifier.size(28.dp))
+                                        Text("Active", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
+                                        Text("${(steps*0.02).toInt()} kcal", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                                    }
+                                }
+                                Card(
+                                    modifier = Modifier.weight(1f),
+                                    colors = CardDefaults.cardColors(containerColor = if (isDarkMode) com.example.productivityapp.ui.theme.BlendPrimaryDark else MaterialTheme.colorScheme.surface)
+                                ) {
+                                    Column(modifier = Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                        StatIcon("Distance", modifier = Modifier.size(28.dp))
+                                        Text("Distance", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
+                                        Text(String.format("%.2f km", steps * 0.0008), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                                    }
+                                }
+                                Card(
+                                    modifier = Modifier.weight(1f),
+                                    colors = CardDefaults.cardColors(containerColor = if (isDarkMode) com.example.productivityapp.ui.theme.BlendPrimaryDark else MaterialTheme.colorScheme.surface)
+                                ) {
+                                    Column(modifier = Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                        StatIcon("Active time", modifier = Modifier.size(28.dp))
+                                        Text("Active time", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
+                                        Text("${(steps/100).coerceAtLeast(0)} min", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                                    }
+                                }
+                            }
+                        }
                     }
 
                     item {
                         StepsWeeklyChart(values = weekly, dailyGoal = dailyGoal)
                     }
 
-                    item {
-                        Card(modifier = Modifier.fillMaxWidth(), colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = com.example.productivityapp.ui.theme.StepsAmber)) {
-                            Column(modifier = Modifier.padding(com.example.productivityapp.ui.theme.Spacing.large), verticalArrangement = Arrangement.spacedBy(com.example.productivityapp.ui.theme.Spacing.medium)) {
-                                Text("Manual entry", style = MaterialTheme.typography.titleMedium)
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        OutlinedButton(
-                                            onClick = { onAddManualSteps(100) },
-                                            modifier = Modifier.semantics { testTag = "quick_add_100"; contentDescription = "Add one hundred steps" }
-                                        ) {
-                                            Text("+100")
-                                        }
-                                        OutlinedButton(
-                                            onClick = { onAddManualSteps(500) },
-                                            modifier = Modifier.semantics { testTag = "quick_add_500"; contentDescription = "Add five hundred steps" }
-                                        ) {
-                                            Text("+500")
-                                        }
-                                }
-                                OutlinedTextField(
-                                    value = customManualSteps,
-                                    onValueChange = { value -> customManualSteps = value.filter { it.isDigit() }.take(5) },
-                                    label = { Text("Custom steps") },
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .semantics { testTag = "custom_step_input"; contentDescription = "Custom steps input" },
-                                )
-                                Button(
-                                    onClick = {
-                                        customManualSteps.toIntOrNull()?.takeIf { it > 0 }?.let(onAddManualSteps)
-                                        customManualSteps = ""
-                                    },
-                                    modifier = Modifier.semantics { testTag = "custom_step_submit"; contentDescription = "Submit custom steps" },
-                                ) {
-                                    Text("Add custom steps")
-                                }
-                            }
-                        }
-                    }
 
                     item {
                         if (!hasStepSensor) {
@@ -260,6 +336,9 @@ fun StepScreenContent(
                                 Column(modifier = Modifier.padding(com.example.productivityapp.ui.theme.Spacing.large), verticalArrangement = Arrangement.spacedBy(com.example.productivityapp.ui.theme.Spacing.small)) {
                                     Text("Automatic step tracking unavailable", style = MaterialTheme.typography.titleMedium)
                                     Text("This device does not provide a hardware step counter sensor. You can still log steps manually.")
+                                    Button(onClick = { showManualDialog = true }, modifier = Modifier.semantics { testTag = "add_manual_button"; contentDescription = "Add steps manually" }) {
+                                        Text("Add Manually")
+                                    }
                                 }
                             }
                         } else {
@@ -296,7 +375,7 @@ fun StepScreenContent(
                                 }
 
                                 StepPermissionUiState.RequestOrSettings -> {
-                                    Card(modifier = Modifier.fillMaxWidth()) {
+                                    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = stepCardBg)) {
                                         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                             Text("Automatic tracking permission", style = MaterialTheme.typography.titleMedium)
                                             Text("Grant activity recognition to count steps automatically, or continue with manual entry.")
@@ -319,8 +398,53 @@ fun StepScreenContent(
                 Box(modifier = Modifier
                     .fillMaxWidth()
                     .height(ringHeight)
-                    .align(Alignment.TopCenter), contentAlignment = Alignment.Center) {
-                    StepRing(steps = steps, goal = dailyGoal, progress = if (dailyGoal > 0) (steps.toFloat() / dailyGoal.toFloat()).coerceIn(0f,1f) else 0f)
+                    .align(Alignment.TopCenter)) {
+
+                    // compute trend compared to previous day (left side)
+                    val prev = if (weekly.size >= 2) weekly[weekly.lastIndex - 1] else 0
+                    val delta = steps - prev
+                    val (trendText, trendColor) = if (prev > 0) {
+                        val pct = ((delta.toDouble() / prev.toDouble()) * 100.0).toInt()
+                        if (delta >= 0) ("${kotlin.math.abs(pct)}% up ↑" to Color(0xFF2ECC71)) else ("${kotlin.math.abs(pct)}% down ↓" to Color(0xFFEF4444))
+                    } else {
+                        if (steps > 0) ("New" to Color(0xFF2ECC71)) else ("0%" to MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f))
+                    }
+
+                    Column(modifier = Modifier
+                        .fillMaxWidth()
+                        .align(Alignment.TopCenter),
+                        horizontalAlignment = Alignment.CenterHorizontally) {
+
+                        // ring centered
+                        Box(contentAlignment = Alignment.Center) {
+                            StepRing(
+                                steps = steps,
+                                goal = dailyGoal,
+                                progress = if (dailyGoal > 0) (steps.toFloat() / dailyGoal.toFloat()).coerceIn(0f,1f) else 0f,
+                                modifier = Modifier.padding(top = ringTopOffset)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(2.dp))
+
+                        // Row below the ring for trend (left) and add button (right)
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Box(modifier = Modifier.padding(start = 24.dp, top = 0.dp).offset(y = (-6).dp)) {
+                                Text(trendText, color = trendColor, style = MaterialTheme.typography.bodyLarge)
+                            }
+                            Box(modifier = Modifier.padding(end = 32.dp, top = 0.dp).offset(y = (-6).dp)) {
+                                AddStepsFab(onClick = { showManualDialog = true })
+                            }
+                        }
+                    }
+
+                    // Manual entry dialog (popup)
+                    if (showManualDialog) {
+                        ManualEntryDialog(show = true, onDismiss = { showManualDialog = false }, onAdd = { amount ->
+                            onAddManualSteps(amount)
+                            showManualDialog = false
+                        })
+                    }
                 }
             }
         }
@@ -328,18 +452,36 @@ fun StepScreenContent(
 }
 
 @Composable
-private fun StepRing(steps: Int, goal: Int, progress: Float) {
-    val size = 220.dp
-    Box(contentAlignment = Alignment.Center, modifier = Modifier.size(size)) {
+private fun StepRing(steps: Int, goal: Int, progress: Float, modifier: Modifier = Modifier) {
+    val size = 240.dp
+    val isDarkLocal = androidx.compose.foundation.isSystemInDarkTheme()
+    Box(contentAlignment = Alignment.Center, modifier = modifier.size(size)) {
+        // No background glow — draw only the ring (blades removed)
+        Box(modifier = Modifier.size(size)) { /* intentionally empty */ }
+
         Canvas(modifier = Modifier.size(size)) {
-            val stroke = Stroke(width = 20f, cap = StrokeCap.Round)
-            drawArc(color = Color.LightGray, startAngle = -90f, sweepAngle = 360f, useCenter = false, style = stroke)
-            drawArc(color = Color(0xFF6A1B9A), startAngle = -90f, sweepAngle = 360f * progress, useCenter = false, style = stroke)
+            // subtle background track (mode-aware)
+            val bgStroke = Stroke(width = 36f, cap = StrokeCap.Round)
+            val unfilledColor = if (isDarkLocal) BlendPrimaryDark else TrackBeige
+            drawArc(color = unfilledColor, startAngle = -90f, sweepAngle = 360f, useCenter = false, style = bgStroke)
+            // main progress arc (filled)
+            val stroke = Stroke(width = 28f, cap = StrokeCap.Round)
+            drawArc(color = StepsAmber, startAngle = -90f, sweepAngle = 360f * progress, useCenter = false, style = stroke)
         }
 
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("${steps}", style = MaterialTheme.typography.titleLarge, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
-            Text("of $goal", style = MaterialTheme.typography.bodySmall)
+            Text(
+                "$steps (${(progress * 100).toInt()}%)",
+                style = MaterialTheme.typography.headlineMedium.copy(
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                    shadow = Shadow(color = StepsAmberSoft, blurRadius = 16f)
+                )
+            )
+            Text(
+                "of $goal",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+            )
         }
     }
 }

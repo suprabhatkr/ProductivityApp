@@ -9,8 +9,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 // icons replaced with emoji/text to avoid requiring material-icons dependency
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -30,8 +28,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 // removed compose viewModel import — ViewModel is provided by the Activity
@@ -164,15 +160,6 @@ fun WaterIntakeScreen(
                             placeholder = { Text("Custom ml...", fontSize = 13.sp, color = TextTertiary) },
                             modifier = Modifier.weight(1f),
                             singleLine = true,
-                            keyboardOptions = KeyboardOptions(
-                                keyboardType = KeyboardType.Number,
-                                imeAction = ImeAction.Done
-                            ),
-                            keyboardActions = KeyboardActions(onDone = {
-                                customText.toIntOrNull()?.let { viewModel.addWater(it) }
-                                customText = ""
-                                keyboard?.hide()
-                            }),
                             shape = RoundedCornerShape(10.dp),
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = Blue700,
