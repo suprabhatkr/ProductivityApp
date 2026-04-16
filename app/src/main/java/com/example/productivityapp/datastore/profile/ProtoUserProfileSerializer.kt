@@ -13,6 +13,10 @@ object ProtoUserProfileSerializer : Serializer<UserProfileProto> {
         .setPreferredUnits("metric")
         .setDailyStepGoal(10000)
         .setDailyWaterGoalMl(2000)
+        .setNightlySleepGoalMinutes(480)
+        .setTypicalBedtimeMinutes(1320)
+        .setTypicalWakeTimeMinutes(420)
+        .setSleepDetectionBufferMinutes(30)
         .setSchemaVersion(SecureStoredUserProfile.CURRENT_SCHEMA_VERSION)
         .setMigrationState(MigrationStateProto.MIGRATION_STATE_NONE)
         .build()
@@ -29,4 +33,3 @@ object ProtoUserProfileSerializer : Serializer<UserProfileProto> {
         t.writeTo(output)
     }
 }
-

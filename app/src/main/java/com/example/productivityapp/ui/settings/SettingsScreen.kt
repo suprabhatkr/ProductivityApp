@@ -137,6 +137,52 @@ fun SettingsScreen(
                             modifier = Modifier.padding(16.dp),
                             verticalArrangement = Arrangement.spacedBy(12.dp),
                         ) {
+                            Text("Sleep preferences", style = MaterialTheme.typography.titleMedium)
+                            Text(
+                                "These values help the upcoming sleep detector learn your usual schedule while keeping the feature fully on-device.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            OutlinedTextField(
+                                value = uiState.nightlySleepGoalMinutes,
+                                onValueChange = viewModel::updateNightlySleepGoalMinutes,
+                                modifier = Modifier.fillMaxWidth(),
+                                label = { Text("Nightly sleep goal (minutes)") },
+                                supportingText = { Text("Typical range: 180 to 720 minutes") },
+                                singleLine = true,
+                            )
+                            OutlinedTextField(
+                                value = uiState.typicalBedtime,
+                                onValueChange = viewModel::updateTypicalBedtime,
+                                modifier = Modifier.fillMaxWidth(),
+                                label = { Text("Typical bedtime (HH:mm)") },
+                                supportingText = { Text("Example: 22:30") },
+                                singleLine = true,
+                            )
+                            OutlinedTextField(
+                                value = uiState.typicalWakeTime,
+                                onValueChange = viewModel::updateTypicalWakeTime,
+                                modifier = Modifier.fillMaxWidth(),
+                                label = { Text("Typical wake time (HH:mm)") },
+                                supportingText = { Text("Example: 07:00") },
+                                singleLine = true,
+                            )
+                            OutlinedTextField(
+                                value = uiState.sleepDetectionBufferMinutes,
+                                onValueChange = viewModel::updateSleepDetectionBufferMinutes,
+                                modifier = Modifier.fillMaxWidth(),
+                                label = { Text("Sleep detection buffer (minutes)") },
+                                supportingText = { Text("Used to soften noisy inactivity signals") },
+                                singleLine = true,
+                            )
+                        }
+                    }
+
+                    Card(modifier = Modifier.fillMaxWidth()) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
                             Text("Units & daily goals", style = MaterialTheme.typography.titleMedium)
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Button(
@@ -213,4 +259,3 @@ fun SettingsScreen(
         }
     }
 }
-

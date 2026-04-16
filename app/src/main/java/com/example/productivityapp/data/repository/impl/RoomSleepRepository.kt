@@ -26,5 +26,8 @@ class RoomSleepRepository(private val dao: SleepDao) : SleepRepository {
     }
 
     override suspend fun updateSleep(session: SleepEntity) { dao.update(session) }
-}
 
+    override suspend fun deleteSleep(id: Long) {
+        dao.deleteById(id)
+    }
+}

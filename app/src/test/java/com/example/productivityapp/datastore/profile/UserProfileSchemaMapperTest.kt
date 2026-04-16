@@ -28,6 +28,10 @@ class UserProfileSchemaMapperTest {
         assertEquals("metric", mapped.profile.preferredUnits)
         assertEquals(10000, mapped.profile.dailyStepGoal)
         assertEquals(2000, mapped.profile.dailyWaterGoalMl)
+        assertEquals(480, mapped.profile.nightlySleepGoalMinutes)
+        assertEquals(1320, mapped.profile.typicalBedtimeMinutes)
+        assertEquals(420, mapped.profile.typicalWakeTimeMinutes)
+        assertEquals(30, mapped.profile.sleepDetectionBufferMinutes)
         assertEquals(ProfileMigrationState.NONE, mapped.migrationState)
     }
 
@@ -52,6 +56,10 @@ class UserProfileSchemaMapperTest {
         assertEquals("imperial", mapped.profile.preferredUnits)
         assertEquals(10000, mapped.profile.dailyStepGoal)
         assertEquals(2000, mapped.profile.dailyWaterGoalMl)
+        assertEquals(480, mapped.profile.nightlySleepGoalMinutes)
+        assertEquals(1320, mapped.profile.typicalBedtimeMinutes)
+        assertEquals(420, mapped.profile.typicalWakeTimeMinutes)
+        assertEquals(30, mapped.profile.sleepDetectionBufferMinutes)
     }
 
     @Test
@@ -65,8 +73,12 @@ class UserProfileSchemaMapperTest {
                 preferredUnits = "metric",
                 dailyStepGoal = 12000,
                 dailyWaterGoalMl = 2500,
+                nightlySleepGoalMinutes = 460,
+                typicalBedtimeMinutes = 1365,
+                typicalWakeTimeMinutes = 405,
+                sleepDetectionBufferMinutes = 35,
             ),
-            schemaVersion = 1,
+            schemaVersion = SecureStoredUserProfile.CURRENT_SCHEMA_VERSION,
             migrationState = ProfileMigrationState.MIGRATING,
             migratedAtEpochMs = 1234L,
             lastWriteEpochMs = 5678L,
@@ -77,4 +89,3 @@ class UserProfileSchemaMapperTest {
         assertEquals(original, restored)
     }
 }
-

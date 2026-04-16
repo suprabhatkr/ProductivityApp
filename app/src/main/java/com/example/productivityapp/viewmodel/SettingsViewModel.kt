@@ -19,6 +19,10 @@ data class SettingsUiState(
     val preferredUnits: String = "metric",
     val dailyStepGoal: String = "10000",
     val dailyWaterGoalMl: String = "2000",
+    val nightlySleepGoalMinutes: String = "480",
+    val typicalBedtime: String = "22:00",
+    val typicalWakeTime: String = "07:00",
+    val sleepDetectionBufferMinutes: String = "30",
     val hasUnsavedChanges: Boolean = false,
     val message: String? = null,
 )
@@ -47,6 +51,10 @@ class SettingsViewModel(
                         preferredUnits = profile.preferredUnits,
                         dailyStepGoal = profile.dailyStepGoal.toString(),
                         dailyWaterGoalMl = profile.dailyWaterGoalMl.toString(),
+                        nightlySleepGoalMinutes = profile.nightlySleepGoalMinutes.toString(),
+                        typicalBedtime = profile.typicalBedtimeMinutes.toClockString(),
+                        typicalWakeTime = profile.typicalWakeTimeMinutes.toClockString(),
+                        sleepDetectionBufferMinutes = profile.sleepDetectionBufferMinutes.toString(),
                     )
                 }
             }
@@ -77,6 +85,22 @@ class SettingsViewModel(
 
     fun updateDailyWaterGoalMl(value: String) = updateField {
         copy(dailyWaterGoalMl = value.filter { it.isDigit() }.take(5), hasUnsavedChanges = true, message = null)
+    }
+
+    fun updateNightlySleepGoalMinutes(value: String) = updateField {
+        copy(nightlySleepGoalMinutes = value.filter { it.isDigit() }.take(4), hasUnsavedChanges = true, message = null)
+    }
+
+    fun updateTypicalBedtime(value: String) = updateField {
+        copy(typicalBedtime = value.filter { it.isDigit() || it == ':' }.normalizeClockInput(), hasUnsavedChanges = true, message = null)
+    }
+
+    fun updateTypicalWakeTime(value: String) = updateField {
+        copy(typicalWakeTime = value.filter { it.isDigit() || it == ':' }.normalizeClockInput(), hasUnsavedChanges = true, message = null)
+    }
+
+    fun updateSleepDetectionBufferMinutes(value: String) = updateField {
+        copy(sleepDetectionBufferMinutes = value.filter { it.isDigit() }.take(3), hasUnsavedChanges = true, message = null)
     }
 
     fun saveProfile() {
@@ -127,6 +151,10 @@ class SettingsViewModel(
         val strideText = state.strideLengthMeters.trim()
         val stepGoalText = state.dailyStepGoal.trim()
         val waterGoalText = state.dailyWaterGoalMl.trim()
+        val nightlySleepGoalText = state.nightlySleepGoalMinutes.trim()
+        val bedtimeText = state.typicalBedtime.trim()
+        val wakeText = state.typicalWakeTime.trim()
+        val bufferText = state.sleepDetectionBufferMinutes.trim()
 
         val weight = when {
             weightText.isBlank() -> null
@@ -164,6 +192,30 @@ class SettingsViewModel(
             return null
         }
 
+        val nightlySleepGoal = nightlySleepGoalText.toIntOrNull()?.takeIf { it in 180..720 }
+        if (nightlySleepGoal == null) {
+            _uiState.value = state.copy(isSaving = false, message = "Enter a valid nightly sleep goal in minutes")
+            return null
+        }
+
+        val bedtime = bedtimeText.parseClockMinutesOrNull()
+        if (bedtime == null) {
+            _uiState.value = state.copy(isSaving = false, message = "Enter bedtime as HH:mm")
+            return null
+        }
+
+        val wakeTime = wakeText.parseClockMinutesOrNull()
+        if (wakeTime == null) {
+            _uiState.value = state.copy(isSaving = false, message = "Enter wake time as HH:mm")
+            return null
+        }
+
+        val buffer = bufferText.toIntOrNull()?.takeIf { it in 0..180 }
+        if (buffer == null) {
+            _uiState.value = state.copy(isSaving = false, message = "Enter a valid sleep detection buffer in minutes")
+            return null
+        }
+
         return UserProfile(
             displayName = state.displayName.trim().ifBlank { null },
             weightKg = weight,
@@ -172,6 +224,10 @@ class SettingsViewModel(
             preferredUnits = if (state.preferredUnits == "imperial") "imperial" else "metric",
             dailyStepGoal = dailyStepGoal,
             dailyWaterGoalMl = dailyWaterGoal,
+            nightlySleepGoalMinutes = nightlySleepGoal,
+            typicalBedtimeMinutes = bedtime,
+            typicalWakeTimeMinutes = wakeTime,
+            sleepDetectionBufferMinutes = buffer,
         )
     }
 }
@@ -190,6 +246,33 @@ private fun Double.stripTrailingZero(): Number {
     return if (this == longValue.toDouble()) longValue else this
 }
 
+private fun Int.toClockString(): String {
+    val hours = (this / 60).coerceIn(0, 23)
+    val minutes = (this % 60).coerceIn(0, 59)
+    return "%02d:%02d".format(hours, minutes)
+}
+
+private fun String.normalizeClockInput(): String {
+    val digits = filter { it.isDigit() }
+    return when {
+        contains(":") -> split(":").take(2).joinToString(":") { it.take(2) }
+        digits.length <= 2 -> digits
+        digits.length == 3 -> "0${digits[0]}:${digits.substring(1)}"
+        else -> digits.take(2) + ":" + digits.substring(2, minOf(4, digits.length))
+    }
+}
+
+private fun String.parseClockMinutesOrNull(): Int? {
+    val trimmed = trim()
+    if (trimmed.isBlank()) return null
+    val parts = trimmed.split(":")
+    if (parts.size != 2) return null
+    val hours = parts[0].toIntOrNull() ?: return null
+    val minutes = parts[1].toIntOrNull() ?: return null
+    if (hours !in 0..23 || minutes !in 0..59) return null
+    return hours * 60 + minutes
+}
+
 class SettingsViewModelFactory(
     private val repo: UserProfileRepository,
 ) : androidx.lifecycle.ViewModelProvider.Factory {
@@ -201,4 +284,3 @@ class SettingsViewModelFactory(
         throw IllegalArgumentException("Unknown ViewModel class")
     }
 }
-

@@ -12,11 +12,14 @@ message UserProfileProto {
   string preferred_units = 5;
   int32 daily_step_goal = 6;
   int32 daily_water_goal_ml = 7;
-
   int32 schema_version = 8;
   MigrationStateProto migration_state = 9;
   int64 migrated_at_epoch_ms = 10;
   int64 last_write_epoch_ms = 11;
+  int32 nightly_sleep_goal_minutes = 12;
+  int32 typical_bedtime_minutes = 13;
+  int32 typical_wake_time_minutes = 14;
+  int32 sleep_detection_buffer_minutes = 15;
 }
 
 enum MigrationStateProto {
@@ -25,4 +28,3 @@ enum MigrationStateProto {
   MIGRATION_STATE_COMPLETE = 2;
   MIGRATION_STATE_FAILED = 3;
 }
-

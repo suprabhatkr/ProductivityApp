@@ -84,6 +84,10 @@ class UserDataStore(
     private val PROFILE_UNITS_KEY = "profile_units"
     private val PROFILE_STEP_GOAL_KEY = "profile_step_goal"
     private val PROFILE_WATER_GOAL_KEY = "profile_water_goal"
+    private val PROFILE_SLEEP_GOAL_KEY = "profile_sleep_goal"
+    private val PROFILE_SLEEP_BEDTIME_KEY = "profile_sleep_bedtime"
+    private val PROFILE_SLEEP_WAKE_KEY = "profile_sleep_wake"
+    private val PROFILE_SLEEP_BUFFER_KEY = "profile_sleep_buffer"
     private val PROFILE_VERSION = intPreferencesKey("profile_version")
     fun observeWaterForDate(date: String): Flow<Int> {
         val key = waterKeyForDate(date)
@@ -237,6 +241,10 @@ class UserDataStore(
         val units = securePrefs.getString(PROFILE_UNITS_KEY, "metric") ?: "metric"
         val stepGoal = securePrefs.getInt(PROFILE_STEP_GOAL_KEY, 10000)
         val waterGoal = securePrefs.getInt(PROFILE_WATER_GOAL_KEY, 2000)
+        val nightlySleepGoalMinutes = securePrefs.getInt(PROFILE_SLEEP_GOAL_KEY, 480)
+        val typicalBedtimeMinutes = securePrefs.getInt(PROFILE_SLEEP_BEDTIME_KEY, 1320)
+        val typicalWakeTimeMinutes = securePrefs.getInt(PROFILE_SLEEP_WAKE_KEY, 420)
+        val sleepDetectionBufferMinutes = securePrefs.getInt(PROFILE_SLEEP_BUFFER_KEY, 30)
         UserProfile(
             displayName = name,
             weightKg = weight,
@@ -244,7 +252,11 @@ class UserDataStore(
             strideLengthMeters = stride,
             preferredUnits = units,
             dailyStepGoal = stepGoal,
-            dailyWaterGoalMl = waterGoal
+            dailyWaterGoalMl = waterGoal,
+            nightlySleepGoalMinutes = nightlySleepGoalMinutes,
+            typicalBedtimeMinutes = typicalBedtimeMinutes,
+            typicalWakeTimeMinutes = typicalWakeTimeMinutes,
+            sleepDetectionBufferMinutes = sleepDetectionBufferMinutes,
         )
     }
 
@@ -277,6 +289,10 @@ class UserDataStore(
             editor.putString(PROFILE_UNITS_KEY, profile.preferredUnits)
             editor.putInt(PROFILE_STEP_GOAL_KEY, profile.dailyStepGoal)
             editor.putInt(PROFILE_WATER_GOAL_KEY, profile.dailyWaterGoalMl)
+            editor.putInt(PROFILE_SLEEP_GOAL_KEY, profile.nightlySleepGoalMinutes)
+            editor.putInt(PROFILE_SLEEP_BEDTIME_KEY, profile.typicalBedtimeMinutes)
+            editor.putInt(PROFILE_SLEEP_WAKE_KEY, profile.typicalWakeTimeMinutes)
+            editor.putInt(PROFILE_SLEEP_BUFFER_KEY, profile.sleepDetectionBufferMinutes)
             // commit() is synchronous and returns boolean; prefer to ensure data persisted before emitting
             editor.commit()
 
@@ -298,6 +314,10 @@ class UserDataStore(
         val units = securePrefs.getString(PROFILE_UNITS_KEY, "metric") ?: "metric"
         val stepGoal = securePrefs.getInt(PROFILE_STEP_GOAL_KEY, 10000)
         val waterGoal = securePrefs.getInt(PROFILE_WATER_GOAL_KEY, 2000)
+        val nightlySleepGoalMinutes = securePrefs.getInt(PROFILE_SLEEP_GOAL_KEY, 480)
+        val typicalBedtimeMinutes = securePrefs.getInt(PROFILE_SLEEP_BEDTIME_KEY, 1320)
+        val typicalWakeTimeMinutes = securePrefs.getInt(PROFILE_SLEEP_WAKE_KEY, 420)
+        val sleepDetectionBufferMinutes = securePrefs.getInt(PROFILE_SLEEP_BUFFER_KEY, 30)
         return UserProfile(
             displayName = name,
             weightKg = weight,
@@ -305,7 +325,11 @@ class UserDataStore(
             strideLengthMeters = stride,
             preferredUnits = units,
             dailyStepGoal = stepGoal,
-            dailyWaterGoalMl = waterGoal
+            dailyWaterGoalMl = waterGoal,
+            nightlySleepGoalMinutes = nightlySleepGoalMinutes,
+            typicalBedtimeMinutes = typicalBedtimeMinutes,
+            typicalWakeTimeMinutes = typicalWakeTimeMinutes,
+            sleepDetectionBufferMinutes = sleepDetectionBufferMinutes,
         )
     }
 
@@ -330,4 +354,3 @@ class UserDataStore(
         )
     }
 }
-

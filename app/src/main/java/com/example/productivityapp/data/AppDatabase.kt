@@ -12,7 +12,7 @@ import com.example.productivityapp.data.entities.StepEntity
 
 @Database(
     entities = [com.example.productivityapp.data.entities.StepEntity::class, com.example.productivityapp.data.entities.StepSampleEntity::class, com.example.productivityapp.data.entities.RunEntity::class, com.example.productivityapp.data.entities.SleepEntity::class, com.example.productivityapp.data.entities.RunPointEntity::class],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -21,4 +21,3 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun sleepDao(): SleepDao
     abstract fun runPointDao(): RunPointDao
 }
-

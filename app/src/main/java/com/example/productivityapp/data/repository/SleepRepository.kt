@@ -11,5 +11,5 @@ interface SleepRepository {
     suspend fun startSleep(session: SleepEntity): Long
     suspend fun stopSleep(session: SleepEntity): SleepEntity
     suspend fun updateSleep(session: SleepEntity)
+    suspend fun deleteSleep(id: Long)
 }
-

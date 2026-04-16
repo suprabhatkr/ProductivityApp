@@ -18,7 +18,7 @@ data class SecureStoredUserProfile(
     val lastWriteEpochMs: Long = 0L,
 ) {
     companion object {
-        const val CURRENT_SCHEMA_VERSION = 1
+        const val CURRENT_SCHEMA_VERSION = 2
     }
 }
 
@@ -28,4 +28,3 @@ interface SecureUserProfileStore {
     suspend fun write(record: SecureStoredUserProfile)
     suspend fun clear()
 }
-

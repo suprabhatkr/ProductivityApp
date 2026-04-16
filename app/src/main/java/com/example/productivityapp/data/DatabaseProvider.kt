@@ -41,11 +41,22 @@ object DatabaseProvider {
                 }
             }
 
+            val MIGRATION_3_4 = object : Migration(3, 4) {
+                override fun migrate(db: SupportSQLiteDatabase) {
+                    db.execSQL("ALTER TABLE sleeps ADD COLUMN detectionSource TEXT NOT NULL DEFAULT 'manual'")
+                    db.execSQL("ALTER TABLE sleeps ADD COLUMN confidenceScore REAL NOT NULL DEFAULT 1.0")
+                    db.execSQL("ALTER TABLE sleeps ADD COLUMN inferredStartTimestamp INTEGER")
+                    db.execSQL("ALTER TABLE sleeps ADD COLUMN inferredEndTimestamp INTEGER")
+                    db.execSQL("ALTER TABLE sleeps ADD COLUMN reviewState TEXT NOT NULL DEFAULT 'confirmed'")
+                    db.execSQL("ALTER TABLE sleeps ADD COLUMN tagsCsv TEXT")
+                }
+            }
+
             val instance = Room.databaseBuilder(
                 context.applicationContext,
                 AppDatabase::class.java,
                 "productivity-db"
-            ).addMigrations(MIGRATION_1_2, MIGRATION_2_3).build()
+            ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4).build()
             INSTANCE = instance
             instance
         }
@@ -124,4 +135,3 @@ object DatabaseProvider {
         }
     }
 }
-

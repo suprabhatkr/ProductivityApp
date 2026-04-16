@@ -44,6 +44,10 @@ class SettingsViewModelTest {
                 preferredUnits = "imperial",
                 dailyStepGoal = 12000,
                 dailyWaterGoalMl = 2600,
+                nightlySleepGoalMinutes = 450,
+                typicalBedtimeMinutes = 1380,
+                typicalWakeTimeMinutes = 420,
+                sleepDetectionBufferMinutes = 45,
             )
         )
 
@@ -59,6 +63,10 @@ class SettingsViewModelTest {
         assertEquals("imperial", state.preferredUnits)
         assertEquals("12000", state.dailyStepGoal)
         assertEquals("2600", state.dailyWaterGoalMl)
+        assertEquals("450", state.nightlySleepGoalMinutes)
+        assertEquals("23:00", state.typicalBedtime)
+        assertEquals("07:00", state.typicalWakeTime)
+        assertEquals("45", state.sleepDetectionBufferMinutes)
     }
 
     @Test
@@ -74,6 +82,10 @@ class SettingsViewModelTest {
         vm.updatePreferredUnits("metric")
         vm.updateDailyStepGoal("9000")
         vm.updateDailyWaterGoalMl("2300")
+        vm.updateNightlySleepGoalMinutes("420")
+        vm.updateTypicalBedtime("22:15")
+        vm.updateTypicalWakeTime("06:45")
+        vm.updateSleepDetectionBufferMinutes("25")
         vm.saveProfile()
         runCurrent()
 
@@ -84,6 +96,10 @@ class SettingsViewModelTest {
         assertEquals("metric", repo.profile.value.preferredUnits)
         assertEquals(9000, repo.profile.value.dailyStepGoal)
         assertEquals(2300, repo.profile.value.dailyWaterGoalMl)
+        assertEquals(420, repo.profile.value.nightlySleepGoalMinutes)
+        assertEquals(22 * 60 + 15, repo.profile.value.typicalBedtimeMinutes)
+        assertEquals(6 * 60 + 45, repo.profile.value.typicalWakeTimeMinutes)
+        assertEquals(25, repo.profile.value.sleepDetectionBufferMinutes)
         assertFalse(vm.uiState.value.hasUnsavedChanges)
         assertEquals("Settings saved", vm.uiState.value.message)
     }
@@ -99,6 +115,10 @@ class SettingsViewModelTest {
                 preferredUnits = "imperial",
                 dailyStepGoal = 15000,
                 dailyWaterGoalMl = 3000,
+                nightlySleepGoalMinutes = 510,
+                typicalBedtimeMinutes = 1370,
+                typicalWakeTimeMinutes = 410,
+                sleepDetectionBufferMinutes = 55,
             )
         )
         val vm = SettingsViewModel(repo)
@@ -115,6 +135,10 @@ class SettingsViewModelTest {
         assertEquals("metric", saved.preferredUnits)
         assertEquals(10000, saved.dailyStepGoal)
         assertEquals(2000, saved.dailyWaterGoalMl)
+        assertEquals(480, saved.nightlySleepGoalMinutes)
+        assertEquals(1320, saved.typicalBedtimeMinutes)
+        assertEquals(420, saved.typicalWakeTimeMinutes)
+        assertEquals(30, saved.sleepDetectionBufferMinutes)
         assertTrue(vm.uiState.value.message?.contains("reset", ignoreCase = true) == true)
     }
 }
@@ -130,4 +154,3 @@ private class FakeUserProfileRepository(initial: UserProfile) : UserProfileRepos
         this.profile.value = profile
     }
 }
-

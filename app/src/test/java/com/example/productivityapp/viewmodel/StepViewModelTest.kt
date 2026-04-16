@@ -70,6 +70,14 @@ private class FakeStepRepository(initial: StepEntity?) : StepRepository {
 
     override suspend fun getStepsForDate(date: String): StepEntity? = entity.value
 
+    override suspend fun getStepsForRange(startDate: String, endDate: String): List<StepEntity> {
+        return entity.value?.let { listOf(it) }.orEmpty()
+    }
+
+    override fun observeStepsForRange(startDate: String, endDate: String): Flow<List<StepEntity>> {
+        return entity.map { current -> current?.let { listOf(it) }.orEmpty() }
+    }
+
     override suspend fun upsertSteps(step: StepEntity) {
         entity.value = step
     }
@@ -97,6 +105,18 @@ private class FakeStepRepository(initial: StepEntity?) : StepRepository {
     override suspend fun resetStepsForDate(date: String) {
         entity.value = null
     }
+
+    override fun observeSamplesForDate(date: String): Flow<List<com.example.productivityapp.data.entities.StepSampleEntity>> {
+        return kotlinx.coroutines.flow.flowOf(emptyList())
+    }
+
+    override suspend fun getSamplesForDate(date: String): List<com.example.productivityapp.data.entities.StepSampleEntity> {
+        return emptyList()
+    }
+
+    override suspend fun insertSample(sample: com.example.productivityapp.data.entities.StepSampleEntity) {
+        Unit
+    }
 }
 
 private class FakeStepUserProfileRepository(initial: UserProfile) : UserProfileRepository {
@@ -110,5 +130,4 @@ private class FakeStepUserProfileRepository(initial: UserProfile) : UserProfileR
         this.profile.value = profile
     }
 }
-
 
