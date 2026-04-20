@@ -1,5 +1,7 @@
 package com.example.productivityapp.ui.sleep
 
+import android.content.Intent
+
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -57,6 +59,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.annotation.VisibleForTesting
 import com.example.productivityapp.data.RepositoryProvider
 import com.example.productivityapp.data.entities.SleepDetectionSource
 import com.example.productivityapp.data.entities.SleepEntity
@@ -102,6 +105,9 @@ fun SleepScreen(onBack: () -> Unit = {}) {
     val pendingReview = vm.pendingReviewSession.collectAsState()
     val pendingDetectedReview = vm.pendingDetectedReviewSession.collectAsState()
     val userProfile = userProfileRepo.observeUserProfile().collectAsState(initial = UserProfile())
+    val canUseExactAlarm = remember(context) {
+        SleepAlertScheduler.canScheduleExactAlarms(context.applicationContext)
+    }
 
     SleepScreenContent(
         sessions = sessions.value,
@@ -114,6 +120,13 @@ fun SleepScreen(onBack: () -> Unit = {}) {
         sleepGoalMinutes = userProfile.value.nightlySleepGoalMinutes,
         typicalBedtimeMinutes = userProfile.value.typicalBedtimeMinutes,
         typicalWakeTimeMinutes = userProfile.value.typicalWakeTimeMinutes,
+        canUseExactAlarm = canUseExactAlarm,
+        onRequestExactAlarmAccess = {
+            context.startActivity(
+                Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+        },
         onStartSleep = {
             SleepAlertScheduler.cancelNapReminder(context.applicationContext)
             SleepAlertScheduler.cancelWakeAlarm(context.applicationContext)
@@ -158,6 +171,8 @@ fun SleepScreenContent(
     sleepGoalMinutes: Int = 480,
     typicalBedtimeMinutes: Int = 22 * 60,
     typicalWakeTimeMinutes: Int = 7 * 60,
+    canUseExactAlarm: Boolean = false,
+    onRequestExactAlarmAccess: () -> Unit = {},
     onStartSleep: () -> Unit,
     onStartNapTimer: () -> Unit,
     onScheduleWakeAlarm: (Long, Boolean) -> Unit,
@@ -247,6 +262,14 @@ fun SleepScreenContent(
         .takeIf { it.isNotEmpty() }
         ?.map { circularMinuteDistance(it, typicalWakeTimeMinutes) }
         ?.average()
+    val sleepTip = buildSleepTip(
+        activeSession = activeSession,
+        pendingDetectedReviewSession = pendingDetectedReviewSession,
+        averageQuality = averageQuality,
+        bedtimeDeviationMinutes = bedtimeDeviation,
+        wakeDeviationMinutes = wakeDeviation,
+        napCount = napSessions.size,
+    )
     val consistencyRows = listOf(
         SleepMetric(
             title = "Total sleep",
@@ -324,6 +347,15 @@ fun SleepScreenContent(
                             subtitle = statusDetail,
                             label = statusText,
                             surface = surface,
+                            accent = accent,
+                            tone = tone,
+                        )
+                    }
+
+                    item {
+                        SleepTipCard(
+                            tip = sleepTip,
+                            surface = surfaceAlt,
                             accent = accent,
                             tone = tone,
                         )
@@ -476,8 +508,10 @@ fun SleepScreenContent(
                     WakeAlarmDialog(
                         wakeAlarmTime = wakeAlarmTime,
                         exact = wakeAlarmExact,
+                        exactAlarmAvailable = canUseExactAlarm,
                         onWakeAlarmTimeChanged = { wakeAlarmTime = it },
                         onExactChanged = { wakeAlarmExact = it },
+                        onRequestExactAlarmAccess = onRequestExactAlarmAccess,
                         onDismiss = { showWakeAlarmDialog = false },
                         onSchedule = {
                             val triggerAtMillis = nextWakeTriggerMillis(wakeAlarmTime)
@@ -544,8 +578,10 @@ private fun SleepActionCard(
 private fun WakeAlarmDialog(
     wakeAlarmTime: String,
     exact: Boolean,
+    exactAlarmAvailable: Boolean,
     onWakeAlarmTimeChanged: (String) -> Unit,
     onExactChanged: (Boolean) -> Unit,
+    onRequestExactAlarmAccess: () -> Unit,
     onDismiss: () -> Unit,
     onSchedule: () -> Unit,
 ) {
@@ -562,11 +598,25 @@ private fun WakeAlarmDialog(
                     singleLine = true,
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Switch(checked = exact, onCheckedChange = onExactChanged)
+                    Switch(
+                        checked = exact,
+                        onCheckedChange = onExactChanged,
+                        modifier = Modifier.semantics { contentDescription = "Use exact alarm switch" },
+                    )
                     Spacer(modifier = Modifier.width(10.dp))
                     Column {
                         Text("Use exact alarm")
                         Text("Falls back to a timed reminder if exact alarms are unavailable.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+                if (exact && !exactAlarmAvailable) {
+                    Text(
+                        "Exact alarms are not currently available. You can open system settings to grant access, or keep the timed fallback.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    TextButton(onClick = onRequestExactAlarmAccess) {
+                        Text("Open exact alarm settings")
                     }
                 }
             }
@@ -710,6 +760,37 @@ private fun SleepStateCard(
             }
             Text(label, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
             Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = tone)
+        }
+    }
+}
+
+@Composable
+private fun SleepTipCard(
+    tip: SleepTip,
+    surface: Color,
+    accent: Color,
+    tone: Color,
+) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = surface),
+        shape = RoundedCornerShape(24.dp),
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(12.dp)
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(accent)
+                )
+                Spacer(modifier = Modifier.width(10.dp))
+                Text("Sleep tip", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            }
+            Text(tip.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            Text(tip.message, style = MaterialTheme.typography.bodyMedium, color = tone)
         }
     }
 }
@@ -1045,9 +1126,12 @@ private fun formatClockMinutes(totalMinutes: Int): String {
     return "%02d:%02d".format(hours, minutes)
 }
 
-private fun nextWakeTriggerMillis(timeText: String): Long {
+@VisibleForTesting
+internal fun nextWakeTriggerMillis(
+    timeText: String,
+    now: java.time.ZonedDateTime = java.time.ZonedDateTime.now(),
+): Long {
     val minutes = timeText.parseClockMinutesOrNull() ?: (7 * 60)
-    val now = java.time.ZonedDateTime.now()
     val today = now.toLocalDate().atTime(minutes / 60, minutes % 60).atZone(now.zone)
     val trigger = if (today.isAfter(now)) today else today.plusDays(1)
     return trigger.toInstant().toEpochMilli()

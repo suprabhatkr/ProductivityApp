@@ -105,6 +105,36 @@ class SettingsViewModelTest {
     }
 
     @Test
+    fun saveProfile_rejectsInvalidNightlySleepGoal() = runTest(dispatcher) {
+        val repo = FakeUserProfileRepository(UserProfile())
+        val vm = SettingsViewModel(repo)
+        runCurrent()
+
+        vm.updateNightlySleepGoalMinutes("90")
+        vm.saveProfile()
+        runCurrent()
+
+        assertEquals(UserProfile(), repo.profile.value)
+        assertEquals("Enter a valid nightly sleep goal in minutes", vm.uiState.value.message)
+        assertTrue(vm.uiState.value.hasUnsavedChanges)
+    }
+
+    @Test
+    fun saveProfile_rejectsInvalidSleepWindowTime() = runTest(dispatcher) {
+        val repo = FakeUserProfileRepository(UserProfile())
+        val vm = SettingsViewModel(repo)
+        runCurrent()
+
+        vm.updateTypicalBedtime("25:00")
+        vm.saveProfile()
+        runCurrent()
+
+        assertEquals(UserProfile(), repo.profile.value)
+        assertEquals("Enter bedtime as HH:mm", vm.uiState.value.message)
+        assertTrue(vm.uiState.value.hasUnsavedChanges)
+    }
+
+    @Test
     fun resetProfile_clearsOptionalFieldsAndRestoresDefaults() = runTest(dispatcher) {
         val repo = FakeUserProfileRepository(
             UserProfile(

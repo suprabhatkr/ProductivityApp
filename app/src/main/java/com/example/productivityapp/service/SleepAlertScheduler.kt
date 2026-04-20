@@ -28,6 +28,17 @@ object SleepAlertScheduler {
     @VisibleForTesting
     internal var nowProvider: () -> ZonedDateTime = { ZonedDateTime.now() }
 
+    @VisibleForTesting
+    internal var exactAlarmCapabilityProvider: (Context) -> Boolean = { context ->
+        when {
+            Build.VERSION.SDK_INT < Build.VERSION_CODES.S -> true
+            else -> {
+                val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager
+                alarmManager?.canScheduleExactAlarms() == true
+            }
+        }
+    }
+
     fun scheduleNapReminder(context: Context, delayMinutes: Long = NAP_REMINDER_DELAY_MINUTES) {
         cancelNapReminder(context)
         val delay = Duration.ofMinutes(delayMinutes.coerceAtLeast(1L))
@@ -81,6 +92,8 @@ object SleepAlertScheduler {
         )
     }
 
+    fun canScheduleExactAlarms(context: Context): Boolean = exactAlarmCapabilityProvider(context)
+
     fun cancelWakeAlarm(context: Context) {
         WorkManager.getInstance(context.applicationContext).cancelUniqueWork(UNIQUE_WAKE_ALARM_WORK)
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
@@ -99,16 +112,6 @@ object SleepAlertScheduler {
             triggerAtMillis,
             buildWakePendingIntent(context, PendingIntent.FLAG_UPDATE_CURRENT),
         )
-    }
-
-    private fun canScheduleExactAlarms(context: Context): Boolean {
-        return when {
-            Build.VERSION.SDK_INT < Build.VERSION_CODES.S -> true
-            else -> {
-                val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager
-                alarmManager?.canScheduleExactAlarms() == true
-            }
-        }
     }
 
     private fun buildWakePendingIntent(context: Context, flags: Int): PendingIntent {

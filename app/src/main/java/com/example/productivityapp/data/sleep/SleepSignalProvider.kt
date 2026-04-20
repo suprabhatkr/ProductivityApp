@@ -7,6 +7,7 @@ import android.os.BatteryManager
 import android.os.PowerManager
 import androidx.annotation.VisibleForTesting
 import com.example.productivityapp.data.model.UserProfile
+import android.util.Log
 import java.time.ZonedDateTime
 
 interface SleepSignalProvider {
@@ -27,24 +28,29 @@ object AndroidSleepSignalProvider : SleepSignalProvider {
     }
 
     override fun collect(context: Context, profile: UserProfile, now: ZonedDateTime): SleepSignalSnapshot? {
-        if (isInteractiveProvider(context)) return null
-        if (!isCharging(context)) return null
+        return try {
+            if (isInteractiveProvider(context)) return null
+            if (!isCharging(context)) return null
 
-        val minuteOfDay = now.toLocalTime().hour * 60 + now.toLocalTime().minute
-        if (!isWithinSleepWindow(minuteOfDay, profile.typicalBedtimeMinutes, profile.typicalWakeTimeMinutes)) {
-            return null
+            val minuteOfDay = now.toLocalTime().hour * 60 + now.toLocalTime().minute
+            if (!isWithinSleepWindow(minuteOfDay, profile.typicalBedtimeMinutes, profile.typicalWakeTimeMinutes)) {
+                return null
+            }
+
+            val conservativeIdleMinutes = maxOf(profile.sleepDetectionBufferMinutes * 6, 180)
+            val nowEpochMs = now.toInstant().toEpochMilli()
+            SleepSignalSnapshot(
+                idleMinutes = conservativeIdleMinutes,
+                lastInteractionMinutesAgo = conservativeIdleMinutes,
+                wakeInteractionMinutesAgo = null,
+                isCharging = true,
+                hasForegroundActivity = false,
+                nowEpochMs = nowEpochMs,
+            )
+        } catch (securityException: SecurityException) {
+            Log.w("AndroidSleepSignalProvider", "Sleep signal access unavailable; skipping auto-detection", securityException)
+            null
         }
-
-        val conservativeIdleMinutes = maxOf(profile.sleepDetectionBufferMinutes * 6, 180)
-        val nowEpochMs = now.toInstant().toEpochMilli()
-        return SleepSignalSnapshot(
-            idleMinutes = conservativeIdleMinutes,
-            lastInteractionMinutesAgo = conservativeIdleMinutes,
-            wakeInteractionMinutesAgo = null,
-            isCharging = true,
-            hasForegroundActivity = false,
-            nowEpochMs = nowEpochMs,
-        )
     }
 
     private fun isCharging(context: Context): Boolean {

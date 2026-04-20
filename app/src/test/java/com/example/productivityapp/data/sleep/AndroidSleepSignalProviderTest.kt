@@ -71,4 +71,13 @@ class AndroidSleepSignalProviderTest {
 
         assertNull(AndroidSleepSignalProvider.collect(context, profile, now))
     }
+
+    @Test
+    fun collect_returnsNullWhenSignalAccessIsDenied() {
+        AndroidSleepSignalProvider.isInteractiveProvider = { throw SecurityException("no access") }
+
+        val result = AndroidSleepSignalProvider.collect(context, UserProfile(), ZonedDateTime.now(ZoneId.of("UTC")))
+
+        assertNull(result)
+    }
 }

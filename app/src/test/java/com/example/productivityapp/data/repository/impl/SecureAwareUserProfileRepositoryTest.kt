@@ -319,6 +319,10 @@ class SecureAwareUserProfileRepositoryTest {
         assertEquals("runtime-copy", migrated.profile.displayName)
         assertEquals(69.4, migrated.profile.weightKg ?: 0.0, 0.0)
         assertEquals(2400, migrated.profile.dailyWaterGoalMl)
+        assertEquals(480, migrated.profile.nightlySleepGoalMinutes)
+        assertEquals(1320, migrated.profile.typicalBedtimeMinutes)
+        assertEquals(420, migrated.profile.typicalWakeTimeMinutes)
+        assertEquals(30, migrated.profile.sleepDetectionBufferMinutes)
     }
 
     @Test
@@ -471,5 +475,4 @@ class SecureAwareUserProfileRepositoryTest {
     private fun runBlockingRead(store: SecureUserProfileStore): SecureStoredUserProfile =
         kotlinx.coroutines.runBlocking { store.read() }
 }
-
 

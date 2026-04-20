@@ -178,6 +178,39 @@ class SleepMaintenanceWorkerTest {
         assertEquals(SleepReviewState.PROVISIONAL.storageValue, saved.reviewState)
         assertEquals("overnight,charging", saved.tagsCsv)
     }
+
+    @Test
+    fun performMaintenance_skipsAutoDetectionWhenSignalAccessIsDenied() = runTest {
+        val repo = FakeSleepRepository()
+        val profileRepo = FakeUserProfileRepository(
+            UserProfile(
+                typicalBedtimeMinutes = 22 * 60,
+                typicalWakeTimeMinutes = 7 * 60,
+                sleepDetectionBufferMinutes = 30,
+            )
+        )
+        val now = ZonedDateTime.of(
+            LocalDate.of(2026, 4, 11),
+            LocalTime.of(23, 30),
+            ZoneId.of("Asia/Kolkata"),
+        )
+
+        SleepMaintenanceWorker.sleepRepositoryProvider = { repo }
+        SleepMaintenanceWorker.userProfileRepositoryProvider = { profileRepo }
+        SleepMaintenanceWorker.sleepSignalProvider = object : SleepSignalProvider {
+            override fun collect(
+                context: Context,
+                profile: UserProfile,
+                now: ZonedDateTime,
+            ): SleepSignalSnapshot? {
+                throw SecurityException("denied")
+            }
+        }
+
+        SleepMaintenanceWorker.performMaintenance(context, now)
+
+        assertTrue(repo.sessions.value.isEmpty())
+    }
 }
 
 private class FakeUserProfileRepository(initial: UserProfile) : UserProfileRepository {

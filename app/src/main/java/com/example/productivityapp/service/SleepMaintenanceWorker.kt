@@ -1,6 +1,7 @@
 package com.example.productivityapp.service
 
 import android.content.Context
+import android.util.Log
 import androidx.annotation.VisibleForTesting
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingWorkPolicy
@@ -153,7 +154,16 @@ class SleepMaintenanceWorker(
             allowDetection: Boolean,
         ) {
             if (!allowDetection) return
-            val signals = sleepSignalProvider?.collect(context, profile, now) ?: return
+            val signals = try {
+                sleepSignalProvider?.collect(context, profile, now)
+            } catch (securityException: SecurityException) {
+                Log.w(
+                    "SleepMaintenanceWorker",
+                    "Sleep signal collection unavailable; skipping auto-detection",
+                    securityException,
+                )
+                null
+            } ?: return
             HeuristicSleepDetectionCoordinator(sleepRepo).detectAndPersist(profile, signals)
         }
 
