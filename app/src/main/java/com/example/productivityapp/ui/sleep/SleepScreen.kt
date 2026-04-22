@@ -23,7 +23,11 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -36,6 +40,10 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -55,11 +63,13 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.annotation.VisibleForTesting
+import android.widget.NumberPicker
 import com.example.productivityapp.data.RepositoryProvider
 import com.example.productivityapp.data.entities.SleepDetectionSource
 import com.example.productivityapp.data.entities.SleepEntity
@@ -67,9 +77,15 @@ import com.example.productivityapp.data.entities.SleepReviewState
 import com.example.productivityapp.data.entities.tags
 import com.example.productivityapp.data.model.UserProfile
 import com.example.productivityapp.service.SleepAlertScheduler
+import com.example.productivityapp.util.SleepActionLogger
 import com.example.productivityapp.viewmodel.SleepDaySummary
 import com.example.productivityapp.viewmodel.SleepViewModel
 import com.example.productivityapp.viewmodel.SleepViewModelFactory
+import java.time.LocalDate
+import java.time.LocalTime
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.roundToInt
@@ -108,6 +124,7 @@ fun SleepScreen(onBack: () -> Unit = {}) {
     val canUseExactAlarm = remember(context) {
         SleepAlertScheduler.canScheduleExactAlarms(context.applicationContext)
     }
+    SleepActionLogger.initialize(context.applicationContext)
 
     SleepScreenContent(
         sessions = sessions.value,
@@ -127,16 +144,36 @@ fun SleepScreen(onBack: () -> Unit = {}) {
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             )
         },
-        onStartSleep = {
-            SleepAlertScheduler.cancelNapReminder(context.applicationContext)
-            SleepAlertScheduler.cancelWakeAlarm(context.applicationContext)
-            vm.startSleep()
+        onLogSleep = { startTimestamp, endTimestamp, quality, notes ->
+            SleepActionLogger.logEvent(
+                "sleep_button_click",
+                mapOf("action" to "manual_sleep_save")
+            )
+            vm.logManualSleep(startTimestamp, endTimestamp, quality, notes)
         },
         onStartNapTimer = {
-            SleepAlertScheduler.cancelNapReminder(context.applicationContext)
-            SleepAlertScheduler.cancelWakeAlarm(context.applicationContext)
-            vm.startNapTimer()
-            SleepAlertScheduler.scheduleNapReminder(context.applicationContext)
+            if (activeSession.value?.detectionSource == SleepDetectionSource.NAP.storageValue) {
+                SleepActionLogger.logEvent(
+                    "sleep_button_click",
+                    mapOf("action" to "stop_nap")
+                )
+                vm.stopSleep()
+                SleepAlertScheduler.cancelNapReminder(context.applicationContext)
+                if (SleepAlertScheduler.hasWakeAlarmScheduled(context.applicationContext)) {
+                    SleepAlertScheduler.cancelWakeAlarm(context.applicationContext)
+                }
+            } else {
+                SleepActionLogger.logEvent(
+                    "sleep_button_click",
+                    mapOf("action" to "start_nap")
+                )
+                SleepAlertScheduler.cancelNapReminder(context.applicationContext)
+                if (SleepAlertScheduler.hasWakeAlarmScheduled(context.applicationContext)) {
+                    SleepAlertScheduler.cancelWakeAlarm(context.applicationContext)
+                }
+                vm.startNapTimer()
+                SleepAlertScheduler.scheduleNapReminder(context.applicationContext)
+            }
         },
         onScheduleWakeAlarm = { triggerAtMillis, exact ->
             SleepAlertScheduler.scheduleWakeAlarm(context.applicationContext, triggerAtMillis, exact)
@@ -173,7 +210,7 @@ fun SleepScreenContent(
     typicalWakeTimeMinutes: Int = 7 * 60,
     canUseExactAlarm: Boolean = false,
     onRequestExactAlarmAccess: () -> Unit = {},
-    onStartSleep: () -> Unit,
+    onLogSleep: (Long, Long, Int?, String) -> Unit,
     onStartNapTimer: () -> Unit,
     onScheduleWakeAlarm: (Long, Boolean) -> Unit,
     onPauseSleep: () -> Unit,
@@ -199,6 +236,18 @@ fun SleepScreenContent(
     var showWakeAlarmDialog by rememberSaveable { mutableStateOf(false) }
     var wakeAlarmExact by rememberSaveable { mutableStateOf(false) }
     var wakeAlarmTime by rememberSaveable { mutableStateOf("07:00") }
+    var showManualSleepDialog by rememberSaveable { mutableStateOf(false) }
+    var manualSleepStartDate by rememberSaveable { mutableStateOf(LocalDate.now().minusDays(1).toString()) }
+    var manualSleepEndDate by rememberSaveable { mutableStateOf(LocalDate.now().toString()) }
+    var manualSleepStartHour by rememberSaveable { mutableIntStateOf(10) }
+    var manualSleepStartMinute by rememberSaveable { mutableIntStateOf(0) }
+    var manualSleepStartPeriod by rememberSaveable { mutableIntStateOf(1) }
+    var manualSleepEndHour by rememberSaveable { mutableIntStateOf(6) }
+    var manualSleepEndMinute by rememberSaveable { mutableIntStateOf(0) }
+    var manualSleepEndPeriod by rememberSaveable { mutableIntStateOf(0) }
+    var manualSleepQuality by rememberSaveable { mutableStateOf("") }
+    var manualSleepNotes by rememberSaveable { mutableStateOf("") }
+    var manualSleepError by rememberSaveable { mutableStateOf<String?>(null) }
 
     val darkTheme = androidx.compose.foundation.isSystemInDarkTheme()
     val backdrop = if (darkTheme) SleepBackdropDark else SleepBackdropLight
@@ -270,6 +319,8 @@ fun SleepScreenContent(
         wakeDeviationMinutes = wakeDeviation,
         napCount = napSessions.size,
     )
+    var showSleepTip by rememberSaveable(sleepTip.title, sleepTip.message) { mutableStateOf(true) }
+    val activeNapSession = activeSession?.detectionSource == SleepDetectionSource.NAP.storageValue
     val consistencyRows = listOf(
         SleepMetric(
             title = "Total sleep",
@@ -342,6 +393,21 @@ fun SleepScreenContent(
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
                     item {
+                        SleepActionCard(
+                            onStartNapTimer = onStartNapTimer,
+                            onOpenWakeAlarmDialog = { showWakeAlarmDialog = true },
+                            onOpenManualSleepDialog = {
+                                manualSleepError = null
+                                showManualSleepDialog = true
+                            },
+                            activeNapSession = activeNapSession,
+                            surface = surfaceAlt,
+                            accent = accent,
+                            tone = tone,
+                        )
+                    }
+
+                    item {
                         SleepStateCard(
                             title = "Sleep insights",
                             subtitle = statusDetail,
@@ -352,13 +418,16 @@ fun SleepScreenContent(
                         )
                     }
 
-                    item {
-                        SleepTipCard(
-                            tip = sleepTip,
-                            surface = surfaceAlt,
-                            accent = accent,
-                            tone = tone,
-                        )
+                    if (showSleepTip) {
+                        item {
+                            SleepTipCard(
+                                tip = sleepTip,
+                                surface = surfaceAlt,
+                                accent = accent,
+                                tone = tone,
+                                onDismiss = { showSleepTip = false },
+                            )
+                        }
                     }
 
                     items(consistencyRows.chunked(2)) { rowMetrics ->
@@ -424,16 +493,6 @@ fun SleepScreenContent(
                     }
 
                     item {
-                        SleepActionCard(
-                            onStartNapTimer = onStartNapTimer,
-                            onOpenWakeAlarmDialog = { showWakeAlarmDialog = true },
-                            surface = surfaceAlt,
-                            accent = accent,
-                            tone = tone,
-                        )
-                    }
-
-                    item {
                         Text(
                             "History",
                             style = MaterialTheme.typography.titleLarge,
@@ -452,27 +511,12 @@ fun SleepScreenContent(
                     }
                 }
 
-                Column(
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .align(Alignment.TopCenter)
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
+                        .align(Alignment.TopCenter),
+                    contentAlignment = Alignment.TopCenter,
                 ) {
-                    Text(
-                        "Tonight's progress",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-                    Text(
-                        statusText,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = tone,
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
                     SleepRing(
                         progress = progress,
                         totalLabel = sleepLabel,
@@ -481,27 +525,6 @@ fun SleepScreenContent(
                         track = track,
                         background = surface,
                     )
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        SleepTrendChip(
-                            text = trendText,
-                            surface = surface,
-                            accent = trendColor,
-                        )
-
-                        OutlinedButton(
-                            onClick = onStartSleep,
-                            modifier = Modifier.semantics { contentDescription = "Manual sleep action" },
-                        ) {
-                            Text(if (activeSession == null) "Log sleep" else "Start new")
-                        }
-                    }
                 }
 
                 if (showWakeAlarmDialog) {
@@ -520,6 +543,55 @@ fun SleepScreenContent(
                         },
                     )
                 }
+
+                if (showManualSleepDialog) {
+                    ManualSleepDialog(
+                        startDateText = manualSleepStartDate,
+                        endDateText = manualSleepEndDate,
+                        startHour = manualSleepStartHour,
+                        startMinute = manualSleepStartMinute,
+                        startPeriod = manualSleepStartPeriod,
+                        endHour = manualSleepEndHour,
+                        endMinute = manualSleepEndMinute,
+                        endPeriod = manualSleepEndPeriod,
+                        qualityText = manualSleepQuality,
+                        notesText = manualSleepNotes,
+                        errorText = manualSleepError,
+                        onStartDateChanged = { manualSleepStartDate = it },
+                        onEndDateChanged = { manualSleepEndDate = it },
+                        onStartHourChanged = { manualSleepStartHour = it },
+                        onStartMinuteChanged = { manualSleepStartMinute = it },
+                        onStartPeriodChanged = { manualSleepStartPeriod = it },
+                        onEndHourChanged = { manualSleepEndHour = it },
+                        onEndMinuteChanged = { manualSleepEndMinute = it },
+                        onEndPeriodChanged = { manualSleepEndPeriod = it },
+                        onQualityChanged = { manualSleepQuality = it },
+                        onNotesChanged = { manualSleepNotes = it },
+                        onDismiss = { showManualSleepDialog = false },
+                        onSave = {
+                            val startDate = runCatching { LocalDate.parse(manualSleepStartDate) }.getOrNull()
+                            val endDate = runCatching { LocalDate.parse(manualSleepEndDate) }.getOrNull()
+                            if (startDate == null || endDate == null) {
+                                manualSleepError = "Pick valid start and end dates."
+                                return@ManualSleepDialog
+                            }
+
+                            val zone = ZoneId.systemDefault()
+                            val start = startDate.atTime(manualSleepStartHour.toTwentyFourHour(manualSleepStartPeriod), manualSleepStartMinute).atZone(zone)
+                            val end = endDate.atTime(manualSleepEndHour.toTwentyFourHour(manualSleepEndPeriod), manualSleepEndMinute).atZone(zone)
+                            if (!end.isAfter(start)) {
+                                manualSleepError = "End date and time must be after the start."
+                                return@ManualSleepDialog
+                            }
+
+                            val quality = manualSleepQuality.trim().toIntOrNull()?.takeIf { it in 1..5 }
+                            val notes = manualSleepNotes.trim()
+                            onLogSleep(start.toInstant().toEpochMilli(), end.toInstant().toEpochMilli(), quality, notes)
+                            manualSleepError = null
+                            showManualSleepDialog = false
+                        },
+                    )
+                }
             }
         }
     }
@@ -529,6 +601,8 @@ fun SleepScreenContent(
 private fun SleepActionCard(
     onStartNapTimer: () -> Unit,
     onOpenWakeAlarmDialog: () -> Unit,
+    onOpenManualSleepDialog: () -> Unit,
+    activeNapSession: Boolean,
     surface: Color,
     accent: Color,
     tone: Color,
@@ -549,25 +623,32 @@ private fun SleepActionCard(
                         .background(accent)
                 )
                 Spacer(modifier = Modifier.width(10.dp))
-                Text("Nap timer & wake alarm", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text("Quick actions", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             }
             Text(
-                "Start a nap session now or set a wake alarm for later.",
+                if (activeNapSession) "Stop the active nap, set an alarm, or log sleep manually."
+                else "Start a nap, set an alarm, or log sleep manually.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = tone,
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(
+                OutlinedButton(
                     onClick = onStartNapTimer,
-                    modifier = Modifier.semantics { contentDescription = "Start nap timer" },
+                    modifier = Modifier.semantics { contentDescription = if (activeNapSession) "Stop nap" else "Start nap" },
                 ) {
-                    Text("Start Nap Timer")
+                    Text(if (activeNapSession) "Stop Nap" else "Start Nap")
                 }
                 OutlinedButton(
                     onClick = onOpenWakeAlarmDialog,
-                    modifier = Modifier.semantics { contentDescription = "Set wake-up alarm" },
+                    modifier = Modifier.semantics { contentDescription = "Alarm" },
                 ) {
-                    Text("Set Wake Alarm")
+                    Text("Alarm")
+                }
+                OutlinedButton(
+                    onClick = onOpenManualSleepDialog,
+                    modifier = Modifier.semantics { contentDescription = "Log sleep" },
+                ) {
+                    Text("Log Sleep")
                 }
             }
         }
@@ -632,6 +713,311 @@ private fun WakeAlarmDialog(
             }
         },
     )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ManualSleepDialog(
+    startDateText: String,
+    endDateText: String,
+    startHour: Int,
+    startMinute: Int,
+    startPeriod: Int,
+    endHour: Int,
+    endMinute: Int,
+    endPeriod: Int,
+    qualityText: String,
+    notesText: String,
+    errorText: String?,
+    onStartDateChanged: (String) -> Unit,
+    onEndDateChanged: (String) -> Unit,
+    onStartHourChanged: (Int) -> Unit,
+    onStartMinuteChanged: (Int) -> Unit,
+    onStartPeriodChanged: (Int) -> Unit,
+    onEndHourChanged: (Int) -> Unit,
+    onEndMinuteChanged: (Int) -> Unit,
+    onEndPeriodChanged: (Int) -> Unit,
+    onQualityChanged: (String) -> Unit,
+    onNotesChanged: (String) -> Unit,
+    onDismiss: () -> Unit,
+    onSave: () -> Unit,
+) {
+    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
+    val dialogContainerColor = if (isDark) SleepSurfaceDark else SleepSurfaceLight
+    val dialogContentColor = if (isDark) SleepToneDark else SleepToneLight
+    var showStartDatePicker by rememberSaveable { mutableStateOf(false) }
+    var showEndDatePicker by rememberSaveable { mutableStateOf(false) }
+    var showStartTimePicker by rememberSaveable { mutableStateOf(false) }
+    var showEndTimePicker by rememberSaveable { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = dialogContainerColor,
+        titleContentColor = dialogContentColor,
+        textContentColor = dialogContentColor,
+        title = { Text("Log sleep manually") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Pick the start and end dates, then set the times with the wheel picker.")
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    SelectionButton(
+                        label = "Start date",
+                        value = formatSleepDateLabel(startDateText),
+                        onClick = { showStartDatePicker = true },
+                        modifier = Modifier.weight(1f),
+                    )
+                    SelectionButton(
+                        label = "Start time",
+                        value = formatSleepTimeLabel(startHour, startMinute, startPeriod),
+                        onClick = { showStartTimePicker = true },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    SelectionButton(
+                        label = "End date",
+                        value = formatSleepDateLabel(endDateText),
+                        onClick = { showEndDatePicker = true },
+                        modifier = Modifier.weight(1f),
+                    )
+                    SelectionButton(
+                        label = "End time",
+                        value = formatSleepTimeLabel(endHour, endMinute, endPeriod),
+                        onClick = { showEndTimePicker = true },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                OutlinedTextField(
+                    value = qualityText,
+                    onValueChange = { onQualityChanged(it.filter(Char::isDigit).take(1)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Quality (optional 1-5)") },
+                    singleLine = true,
+                )
+                OutlinedTextField(
+                    value = notesText,
+                    onValueChange = onNotesChanged,
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Notes") },
+                    minLines = 2,
+                )
+                if (errorText != null) {
+                    Text(errorText, color = Color(0xFFE17B5A), style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onSave, colors = ButtonDefaults.textButtonColors(contentColor = dialogContentColor)) {
+                Text("Save")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, colors = ButtonDefaults.textButtonColors(contentColor = dialogContentColor)) {
+                Text("Cancel")
+            }
+        },
+    )
+
+    if (showStartDatePicker) {
+        DateSelectorDialog(
+            title = "Select start date",
+            initialDateText = startDateText,
+            onDismiss = { showStartDatePicker = false },
+            onConfirm = {
+                onStartDateChanged(it)
+                showStartDatePicker = false
+            },
+        )
+    }
+    if (showEndDatePicker) {
+        DateSelectorDialog(
+            title = "Select end date",
+            initialDateText = endDateText,
+            onDismiss = { showEndDatePicker = false },
+            onConfirm = {
+                onEndDateChanged(it)
+                showEndDatePicker = false
+            },
+        )
+    }
+    if (showStartTimePicker) {
+        ScrollableTimePickerDialog(
+            title = "Select start time",
+            hour = startHour,
+            minute = startMinute,
+            period = startPeriod,
+            onDismiss = { showStartTimePicker = false },
+            onConfirm = { hour, minute, amPm ->
+                onStartHourChanged(hour)
+                onStartMinuteChanged(minute)
+                onStartPeriodChanged(amPm)
+                showStartTimePicker = false
+            },
+        )
+    }
+    if (showEndTimePicker) {
+        ScrollableTimePickerDialog(
+            title = "Select end time",
+            hour = endHour,
+            minute = endMinute,
+            period = endPeriod,
+            onDismiss = { showEndTimePicker = false },
+            onConfirm = { hour, minute, amPm ->
+                onEndHourChanged(hour)
+                onEndMinuteChanged(minute)
+                onEndPeriodChanged(amPm)
+                showEndTimePicker = false
+            },
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DateSelectorDialog(
+    title: String,
+    initialDateText: String,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit,
+) {
+    val initialDateMillis = remember(initialDateText) {
+        runCatching {
+            LocalDate.parse(initialDateText).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        }.getOrNull()
+    }
+    val datePickerState = rememberDatePickerState(initialSelectedDateMillis = initialDateMillis)
+
+    DatePickerDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(onClick = {
+                val selected = datePickerState.selectedDateMillis ?: return@TextButton
+                onConfirm(
+                    java.time.Instant.ofEpochMilli(selected).atZone(ZoneId.systemDefault()).toLocalDate()
+                        .toString()
+                )
+            }) { Text("OK") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    ) {
+        DatePicker(state = datePickerState)
+    }
+}
+
+@Composable
+private fun ScrollableTimePickerDialog(
+    title: String,
+    hour: Int,
+    minute: Int,
+    period: Int,
+    onDismiss: () -> Unit,
+    onConfirm: (Int, Int, Int) -> Unit,
+) {
+    var selectedHour by remember(hour) { mutableIntStateOf(hour.coerceIn(1, 12)) }
+    var selectedMinute by remember(minute) { mutableIntStateOf(minute.coerceIn(0, 59)) }
+    var selectedPeriod by remember(period) { mutableIntStateOf(period.coerceIn(0, 1)) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                SpinnerColumn(
+                    label = "Hour",
+                    values = (1..12).map(Int::toString),
+                    selectedIndex = selectedHour - 1,
+                    modifier = Modifier.weight(1f),
+                    onSelected = { selectedHour = it + 1 },
+                )
+                SpinnerColumn(
+                    label = "Minute",
+                    values = (0..59).map { "%02d".format(it) },
+                    selectedIndex = selectedMinute,
+                    modifier = Modifier.weight(1f),
+                    onSelected = { selectedMinute = it },
+                )
+                SpinnerColumn(
+                    label = "AM/PM",
+                    values = listOf("AM", "PM"),
+                    selectedIndex = selectedPeriod,
+                    modifier = Modifier.weight(1f),
+                    onSelected = { selectedPeriod = it },
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(selectedHour, selectedMinute, selectedPeriod) }) { Text("OK") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
+}
+
+@Composable
+private fun SpinnerColumn(
+    label: String,
+    values: List<String>,
+    selectedIndex: Int,
+    modifier: Modifier = Modifier,
+    onSelected: (Int) -> Unit,
+) {
+    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(label, style = MaterialTheme.typography.labelMedium)
+        AndroidView(
+            modifier = Modifier.height(160.dp),
+            factory = { context ->
+                NumberPicker(context).apply {
+                    minValue = 0
+                    maxValue = values.lastIndex
+                    displayedValues = values.toTypedArray()
+                    wrapSelectorWheel = true
+                    value = selectedIndex.coerceIn(0, values.lastIndex)
+                    setOnValueChangedListener { _, _, newVal -> onSelected(newVal) }
+                }
+            },
+            update = { picker ->
+                if (picker.maxValue != values.lastIndex) {
+                    picker.minValue = 0
+                    picker.maxValue = values.lastIndex
+                    picker.displayedValues = values.toTypedArray()
+                }
+                val safeIndex = selectedIndex.coerceIn(0, values.lastIndex)
+                if (picker.value != safeIndex) {
+                    picker.value = safeIndex
+                }
+            },
+        )
+    }
+}
+
+@Composable
+private fun SelectionButton(
+    label: String,
+    value: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    OutlinedButton(onClick = onClick, modifier = modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Text(label, style = MaterialTheme.typography.labelMedium)
+            Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        }
+    }
+}
+
+private fun formatSleepDateLabel(dateText: String): String {
+    return runCatching {
+        LocalDate.parse(dateText).format(DateTimeFormatter.ofPattern("MMM d", Locale.getDefault()))
+    }.getOrElse { dateText }
+}
+
+private fun formatSleepTimeLabel(hour: Int, minute: Int, period: Int): String {
+    val time = LocalTime.of(hour.toTwentyFourHour(period), minute.coerceIn(0, 59))
+    return time.format(DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault()))
+}
+
+private fun Int.toTwentyFourHour(period: Int): Int {
+    val normalizedHour = coerceIn(1, 12) % 12
+    return if (period == 1) normalizedHour + 12 else normalizedHour
 }
 
 @Composable
@@ -770,6 +1156,7 @@ private fun SleepTipCard(
     surface: Color,
     accent: Color,
     tone: Color,
+    onDismiss: () -> Unit,
 ) {
     Card(
         colors = CardDefaults.cardColors(containerColor = surface),
@@ -777,9 +1164,9 @@ private fun SleepTipCard(
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(verticalAlignment = Alignment.Top) {
                 Box(
                     modifier = Modifier
                         .size(12.dp)
@@ -787,9 +1174,21 @@ private fun SleepTipCard(
                         .background(accent)
                 )
                 Spacer(modifier = Modifier.width(10.dp))
-                Text("Sleep tip", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Sleep tip", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    Text(tip.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                }
+                IconButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.semantics { contentDescription = "Dismiss sleep tip" },
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Close,
+                        contentDescription = null,
+                        tint = tone,
+                    )
+                }
             }
-            Text(tip.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
             Text(tip.message, style = MaterialTheme.typography.bodyMedium, color = tone)
         }
     }

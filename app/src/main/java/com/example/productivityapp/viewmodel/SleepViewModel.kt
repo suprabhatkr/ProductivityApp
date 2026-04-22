@@ -6,14 +6,17 @@ import com.example.productivityapp.data.repository.SleepRepository
 import com.example.productivityapp.data.entities.SleepEntity
 import com.example.productivityapp.data.entities.SleepDetectionSource
 import com.example.productivityapp.data.entities.SleepReviewState
+import com.example.productivityapp.util.SleepActionLogger
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import java.time.Instant
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import java.time.ZoneId
 
 class SleepViewModel(private val repo: SleepRepository) : ViewModel() {
     private val _sessions = MutableStateFlow<List<SleepEntity>>(emptyList())
@@ -69,8 +72,13 @@ class SleepViewModel(private val repo: SleepRepository) : ViewModel() {
     }
 
     fun startSleep() {
-        if (_activeSession.value != null) return
-        viewModelScope.launch {
+        if (_activeSession.value != null) {
+            SleepActionLogger.logEvent("start_sleep_skipped", sleepLogDetails("log_sleep"))
+            return
+        }
+        val details = sleepLogDetails("log_sleep")
+        SleepActionLogger.logEvent("start_sleep_requested", details)
+        val job = viewModelScope.launch {
             val now = System.currentTimeMillis()
             val session = SleepEntity(
                 date = today,
@@ -94,11 +102,23 @@ class SleepViewModel(private val repo: SleepRepository) : ViewModel() {
             _activeSession.value = persisted
             startTimer(persisted.startTimestamp)
         }
+        job.invokeOnCompletion { throwable ->
+            if (throwable != null) {
+                SleepActionLogger.logError("start_sleep_failed", throwable, details)
+            } else {
+                SleepActionLogger.logEvent("start_sleep_completed", details)
+            }
+        }
     }
 
     fun startNapTimer() {
-        if (_activeSession.value != null) return
-        viewModelScope.launch {
+        if (_activeSession.value != null) {
+            SleepActionLogger.logEvent("start_nap_skipped", sleepLogDetails("start_nap"))
+            return
+        }
+        val details = sleepLogDetails("start_nap")
+        SleepActionLogger.logEvent("start_nap_requested", details)
+        val job = viewModelScope.launch {
             val now = System.currentTimeMillis()
             val session = SleepEntity(
                 date = today,
@@ -122,6 +142,66 @@ class SleepViewModel(private val repo: SleepRepository) : ViewModel() {
             _activeSession.value = persisted
             startTimer(persisted.startTimestamp)
         }
+        job.invokeOnCompletion { throwable ->
+            if (throwable != null) {
+                SleepActionLogger.logError("start_nap_failed", throwable, details)
+            } else {
+                SleepActionLogger.logEvent("start_nap_completed", details)
+            }
+        }
+    }
+
+    fun logManualSleep(startTimestamp: Long, endTimestamp: Long, quality: Int?, notes: String) {
+        if (_activeSession.value != null || endTimestamp <= startTimestamp) {
+            SleepActionLogger.logEvent(
+                "manual_sleep_skipped",
+                sleepLogDetails("manual_sleep").plus(
+                    mapOf(
+                        "startTimestamp" to startTimestamp.toString(),
+                        "endTimestamp" to endTimestamp.toString(),
+                    )
+                )
+            )
+            return
+        }
+
+        val details = sleepLogDetails("manual_sleep").plus(
+            mapOf(
+                "startTimestamp" to startTimestamp.toString(),
+                "endTimestamp" to endTimestamp.toString(),
+            )
+        )
+        SleepActionLogger.logEvent("manual_sleep_requested", details)
+        val job = viewModelScope.launch {
+            val zone = ZoneId.systemDefault()
+            val date = Instant.ofEpochMilli(startTimestamp)
+                .atZone(zone)
+                .toLocalDate()
+                .format(DateTimeFormatter.ISO_LOCAL_DATE)
+            val session = SleepEntity(
+                date = date,
+                startTimestamp = startTimestamp,
+                endTimestamp = endTimestamp,
+                durationSec = ((endTimestamp - startTimestamp).coerceAtLeast(0L) / 1000L),
+                sleepQuality = quality,
+                notes = notes.ifBlank { null },
+                detectionSource = SleepDetectionSource.MANUAL.storageValue,
+                confidenceScore = 1.0,
+                inferredStartTimestamp = null,
+                inferredEndTimestamp = null,
+                reviewState = SleepReviewState.CONFIRMED.storageValue,
+                tagsCsv = null,
+            )
+            val id = repo.startSleep(session)
+            repo.getSleepById(id)
+        }
+        job.invokeOnCompletion { throwable ->
+            if (throwable != null) {
+                SleepActionLogger.logError("manual_sleep_failed", throwable, details)
+            } else {
+                SleepActionLogger.logEvent("manual_sleep_completed", details)
+            }
+        }
     }
 
     fun pauseSleep() {
@@ -142,7 +222,9 @@ class SleepViewModel(private val repo: SleepRepository) : ViewModel() {
 
     fun stopSleep() {
         val active = _activeSession.value ?: return
-        viewModelScope.launch {
+        val details = sleepLogDetails("stop_sleep").plus("activeSessionId" to active.id.toString())
+        SleepActionLogger.logEvent("stop_sleep_requested", details)
+        val job = viewModelScope.launch {
             val now = System.currentTimeMillis()
             val pausePenaltyMs = pausedAccumulatedMs + if (_isPaused.value) {
                 (now - pauseStartedMs).coerceAtLeast(0L)
@@ -161,6 +243,13 @@ class SleepViewModel(private val repo: SleepRepository) : ViewModel() {
             timerJob?.cancel()
             _elapsedSeconds.value = 0L
             _pendingReviewSession.value = persisted
+        }
+        job.invokeOnCompletion { throwable ->
+            if (throwable != null) {
+                SleepActionLogger.logError("stop_sleep_failed", throwable, details)
+            } else {
+                SleepActionLogger.logEvent("stop_sleep_completed", details)
+            }
         }
     }
 
@@ -299,6 +388,17 @@ class SleepViewModel(private val repo: SleepRepository) : ViewModel() {
             second?.trim()?.takeIf { it.isNotBlank() },
         )
         return pieces.takeIf { it.isNotEmpty() }?.joinToString(" | ")
+    }
+
+    private fun sleepLogDetails(action: String): Map<String, String> {
+        return mapOf(
+            "action" to action,
+            "activeSession" to (_activeSession.value?.id?.toString() ?: "none"),
+            "elapsedSeconds" to _elapsedSeconds.value.toString(),
+            "isPaused" to _isPaused.value.toString(),
+            "pendingReview" to (_pendingReviewSession.value != null).toString(),
+            "pendingDetectedReview" to (_pendingDetectedReviewSession.value != null).toString(),
+        )
     }
 
     override fun onCleared() {

@@ -96,6 +96,27 @@ class SleepViewModelTest {
     }
 
     @Test
+    fun logManualSleep_insertsCompletedSession() = runTest(dispatcher) {
+        val repo = FakeSleepRepository()
+        val vm = SleepViewModel(repo)
+        runCurrent()
+
+        val start = 1_700_000_000_000L
+        val end = start + 7 * 60 * 60 * 1000L
+
+        vm.logManualSleep(start, end, 4, "manual entry")
+        runCurrent()
+
+        assertNull(vm.activeSession.value)
+        val saved = repo.allSessions.value.first()
+        assertEquals(SleepDetectionSource.MANUAL.storageValue, saved.detectionSource)
+        assertEquals(SleepReviewState.CONFIRMED.storageValue, saved.reviewState)
+        assertEquals(4, saved.sleepQuality)
+        assertEquals("manual entry", saved.notes)
+        assertEquals(7 * 60 * 60L, saved.durationSec)
+    }
+
+    @Test
     fun weeklySummary_aggregatesRecentHistory() = runTest(dispatcher) {
         val today = LocalDate.now()
         val repo = FakeSleepRepository(

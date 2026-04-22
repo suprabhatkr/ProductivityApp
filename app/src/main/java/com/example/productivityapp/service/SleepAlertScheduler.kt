@@ -94,10 +94,14 @@ object SleepAlertScheduler {
 
     fun canScheduleExactAlarms(context: Context): Boolean = exactAlarmCapabilityProvider(context)
 
+    fun hasWakeAlarmScheduled(context: Context): Boolean {
+        return buildWakePendingIntent(context, PendingIntent.FLAG_NO_CREATE) != null
+    }
+
     fun cancelWakeAlarm(context: Context) {
         WorkManager.getInstance(context.applicationContext).cancelUniqueWork(UNIQUE_WAKE_ALARM_WORK)
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
-        alarmManager.cancel(buildWakePendingIntent(context, PendingIntent.FLAG_NO_CREATE))
+        buildWakePendingIntent(context, PendingIntent.FLAG_NO_CREATE)?.let(alarmManager::cancel)
     }
 
     @VisibleForTesting
@@ -107,14 +111,15 @@ object SleepAlertScheduler {
 
     private fun scheduleExactWakeAlarm(context: Context, triggerAtMillis: Long) {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
+        val pendingIntent = buildWakePendingIntent(context, PendingIntent.FLAG_UPDATE_CURRENT) ?: return
         alarmManager.setExactAndAllowWhileIdle(
             AlarmManager.RTC_WAKEUP,
             triggerAtMillis,
-            buildWakePendingIntent(context, PendingIntent.FLAG_UPDATE_CURRENT),
+            pendingIntent,
         )
     }
 
-    private fun buildWakePendingIntent(context: Context, flags: Int): PendingIntent {
+    private fun buildWakePendingIntent(context: Context, flags: Int): PendingIntent? {
         val intent = Intent(context, SleepAlarmReceiver::class.java).apply {
             putExtra(EXTRA_ALERT_TYPE, ALERT_TYPE_WAKE_ALARM)
             putExtra(EXTRA_ALERT_TITLE, "Wake-up alarm")

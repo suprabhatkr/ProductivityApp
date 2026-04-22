@@ -35,7 +35,7 @@ class SleepScreenPaparazziTest : ComposeTestRuleHolder() {
                 isPaused = false,
                 pendingReviewSession = null,
                 pendingDetectedReviewSession = null,
-                onStartSleep = {},
+                onLogSleep = { _, _, _, _ -> },
                 onStartNapTimer = {},
                 onScheduleWakeAlarm = { _, _ -> },
                 onPauseSleep = {},
