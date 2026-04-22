@@ -15,6 +15,7 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
 
     <!-- Optional features (not required) -->
     <uses-feature android:name="android.hardware.sensor.stepcounter" android:required="false" />
@@ -47,6 +48,11 @@
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
             </intent-filter>
         </receiver>
+
+        <receiver
+            android:name=".service.SleepAlarmReceiver"
+            android:enabled="true"
+            android:exported="false" />
 
         <activity
             android:name=".MainActivity"

@@ -72,6 +72,10 @@ class UserProfileMigrationCoordinatorTest {
         assertEquals(0.81, migrated.profile.strideLengthMeters, 0.0)
         assertEquals(12000, migrated.profile.dailyStepGoal)
         assertEquals(2500, migrated.profile.dailyWaterGoalMl)
+        assertEquals(480, migrated.profile.nightlySleepGoalMinutes)
+        assertEquals(1320, migrated.profile.typicalBedtimeMinutes)
+        assertEquals(420, migrated.profile.typicalWakeTimeMinutes)
+        assertEquals(30, migrated.profile.sleepDetectionBufferMinutes)
         assertTrue(secureStore.read().lastWriteEpochMs > 0L)
     }
 
@@ -132,6 +136,10 @@ class UserProfileMigrationCoordinatorTest {
         assertEquals("metric", persisted.profile.preferredUnits)
         assertEquals(10000, persisted.profile.dailyStepGoal)
         assertEquals(2000, persisted.profile.dailyWaterGoalMl)
+        assertEquals(480, persisted.profile.nightlySleepGoalMinutes)
+        assertEquals(1320, persisted.profile.typicalBedtimeMinutes)
+        assertEquals(420, persisted.profile.typicalWakeTimeMinutes)
+        assertEquals(30, persisted.profile.sleepDetectionBufferMinutes)
     }
 
     @Test
@@ -210,4 +218,3 @@ class UserProfileMigrationCoordinatorTest {
         }
     }
 }
-

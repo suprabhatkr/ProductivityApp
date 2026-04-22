@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.example.productivityapp.data.AppDatabase
+import com.example.productivityapp.data.entities.SleepDetectionSource
+import com.example.productivityapp.data.entities.SleepReviewState
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.flow.first
 import org.junit.After
@@ -44,11 +46,21 @@ class SleepRepositoryUnitTest {
             endTimestamp = now,
             durationSec = 3600,
             sleepQuality = 4,
-            notes = "test"
+            notes = "test",
+            detectionSource = SleepDetectionSource.AUTO.storageValue,
+            confidenceScore = 0.91,
+            inferredStartTimestamp = now - 3600_000,
+            inferredEndTimestamp = now,
+            reviewState = SleepReviewState.PROVISIONAL.storageValue,
+            tagsCsv = "overnight",
         )
         val id = repo.startSleep(sleep)
         val sessions = repo.observeSleepForDate("2026-04-07").first()
         assertEquals(1, sessions.size)
+        assertEquals(SleepDetectionSource.AUTO.storageValue, sessions.first().detectionSource)
+        assertEquals(SleepReviewState.PROVISIONAL.storageValue, sessions.first().reviewState)
+        assertEquals("overnight", sessions.first().tagsCsv)
+        assert(id > 0L)
     }
 
     @Test
@@ -61,6 +73,9 @@ class SleepRepositoryUnitTest {
             durationSec = 0L,
             sleepQuality = null,
             notes = null,
+            detectionSource = SleepDetectionSource.MANUAL.storageValue,
+            confidenceScore = 1.0,
+            reviewState = SleepReviewState.CONFIRMED.storageValue,
         )
         val old = com.example.productivityapp.data.entities.SleepEntity(
             date = today.minusDays(2).format(DateTimeFormatter.ISO_LOCAL_DATE),
@@ -69,6 +84,9 @@ class SleepRepositoryUnitTest {
             durationSec = 7200L,
             sleepQuality = 5,
             notes = "good",
+            detectionSource = SleepDetectionSource.NAP.storageValue,
+            confidenceScore = 0.9,
+            reviewState = SleepReviewState.CONFIRMED.storageValue,
         )
 
         repo.startSleep(old)
@@ -82,6 +100,3 @@ class SleepRepositoryUnitTest {
         assertEquals(2, weekly.size)
     }
 }
-
-
-

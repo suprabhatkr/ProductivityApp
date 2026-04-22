@@ -15,6 +15,10 @@ class UserProfileProto private constructor(
     val preferredUnits: String,
     val dailyStepGoal: Int,
     val dailyWaterGoalMl: Int,
+    val nightlySleepGoalMinutes: Int,
+    val typicalBedtimeMinutes: Int,
+    val typicalWakeTimeMinutes: Int,
+    val sleepDetectionBufferMinutes: Int,
     val schemaVersion: Int,
     val migrationState: MigrationStateProto,
     val migratedAtEpochMs: Long,
@@ -54,6 +58,10 @@ class UserProfileProto private constructor(
         codedOutput.writeEnum(9, migrationState.getNumber())
         codedOutput.writeInt64(10, migratedAtEpochMs)
         codedOutput.writeInt64(11, lastWriteEpochMs)
+        codedOutput.writeInt32(12, nightlySleepGoalMinutes)
+        codedOutput.writeInt32(13, typicalBedtimeMinutes)
+        codedOutput.writeInt32(14, typicalWakeTimeMinutes)
+        codedOutput.writeInt32(15, sleepDetectionBufferMinutes)
         codedOutput.flush()
     }
 
@@ -66,6 +74,10 @@ class UserProfileProto private constructor(
             setPreferredUnits(preferredUnits)
             setDailyStepGoal(dailyStepGoal)
             setDailyWaterGoalMl(dailyWaterGoalMl)
+            setNightlySleepGoalMinutes(nightlySleepGoalMinutes)
+            setTypicalBedtimeMinutes(typicalBedtimeMinutes)
+            setTypicalWakeTimeMinutes(typicalWakeTimeMinutes)
+            setSleepDetectionBufferMinutes(sleepDetectionBufferMinutes)
             setSchemaVersion(schemaVersion)
             setMigrationState(migrationState)
             setMigratedAtEpochMs(migratedAtEpochMs)
@@ -80,6 +92,10 @@ class UserProfileProto private constructor(
         private var preferredUnits: String = ""
         private var dailyStepGoal: Int = 0
         private var dailyWaterGoalMl: Int = 0
+        private var nightlySleepGoalMinutes: Int = 0
+        private var typicalBedtimeMinutes: Int = 0
+        private var typicalWakeTimeMinutes: Int = 0
+        private var sleepDetectionBufferMinutes: Int = 0
         private var schemaVersion: Int = 0
         private var migrationState: MigrationStateProto = MigrationStateProto.MIGRATION_STATE_NONE
         private var migratedAtEpochMs: Long = 0L
@@ -105,6 +121,14 @@ class UserProfileProto private constructor(
 
         fun setDailyWaterGoalMl(value: Int) = apply { dailyWaterGoalMl = value }
 
+        fun setNightlySleepGoalMinutes(value: Int) = apply { nightlySleepGoalMinutes = value }
+
+        fun setTypicalBedtimeMinutes(value: Int) = apply { typicalBedtimeMinutes = value }
+
+        fun setTypicalWakeTimeMinutes(value: Int) = apply { typicalWakeTimeMinutes = value }
+
+        fun setSleepDetectionBufferMinutes(value: Int) = apply { sleepDetectionBufferMinutes = value }
+
         fun setSchemaVersion(value: Int) = apply { schemaVersion = value }
 
         fun setMigrationState(value: MigrationStateProto) = apply { migrationState = value }
@@ -121,6 +145,10 @@ class UserProfileProto private constructor(
             preferredUnits = preferredUnits,
             dailyStepGoal = dailyStepGoal,
             dailyWaterGoalMl = dailyWaterGoalMl,
+            nightlySleepGoalMinutes = nightlySleepGoalMinutes,
+            typicalBedtimeMinutes = typicalBedtimeMinutes,
+            typicalWakeTimeMinutes = typicalWakeTimeMinutes,
+            sleepDetectionBufferMinutes = sleepDetectionBufferMinutes,
             schemaVersion = schemaVersion,
             migrationState = migrationState,
             migratedAtEpochMs = migratedAtEpochMs,
@@ -153,6 +181,10 @@ class UserProfileProto private constructor(
                         72 -> builder.setMigrationState(MigrationStateProto.forNumber(codedInput.readEnum()))
                         80 -> builder.setMigratedAtEpochMs(codedInput.readInt64())
                         88 -> builder.setLastWriteEpochMs(codedInput.readInt64())
+                        96 -> builder.setNightlySleepGoalMinutes(codedInput.readInt32())
+                        104 -> builder.setTypicalBedtimeMinutes(codedInput.readInt32())
+                        112 -> builder.setTypicalWakeTimeMinutes(codedInput.readInt32())
+                        120 -> builder.setSleepDetectionBufferMinutes(codedInput.readInt32())
                         else -> if (!codedInput.skipField(tag)) {
                             done = true
                         }
@@ -165,5 +197,3 @@ class UserProfileProto private constructor(
         }
     }
 }
-
-

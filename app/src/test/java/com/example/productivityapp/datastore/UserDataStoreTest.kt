@@ -62,7 +62,11 @@ class UserDataStoreTest {
             strideLengthMeters = 0.75,
             preferredUnits = "metric",
             dailyStepGoal = 8000,
-            dailyWaterGoalMl = 2500
+            dailyWaterGoalMl = 2500,
+            nightlySleepGoalMinutes = 510,
+            typicalBedtimeMinutes = 1375,
+            typicalWakeTimeMinutes = 415,
+            sleepDetectionBufferMinutes = 40,
         )
 
         uds.updateUserProfile(profile)
@@ -73,9 +77,14 @@ class UserDataStoreTest {
         assertEquals(180, read.heightCm)
         assertEquals(0.75, read.strideLengthMeters, 0.0001)
         assertEquals("metric", read.preferredUnits)
+        assertEquals(8000, read.dailyStepGoal)
+        assertEquals(2500, read.dailyWaterGoalMl)
+        assertEquals(510, read.nightlySleepGoalMinutes)
+        assertEquals(1375, read.typicalBedtimeMinutes)
+        assertEquals(415, read.typicalWakeTimeMinutes)
+        assertEquals(40, read.sleepDetectionBufferMinutes)
 
         dsJob.cancel()
     }
 }
-
 

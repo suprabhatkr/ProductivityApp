@@ -14,6 +14,10 @@ object UserProfileSchemaMapper {
             preferredUnits = proto.preferredUnits.takeIf { it.isNotBlank() } ?: "metric",
             dailyStepGoal = proto.dailyStepGoal.takeIf { it > 0 } ?: 10000,
             dailyWaterGoalMl = proto.dailyWaterGoalMl.takeIf { it > 0 } ?: 2000,
+            nightlySleepGoalMinutes = proto.nightlySleepGoalMinutes.takeIf { it > 0 } ?: 480,
+            typicalBedtimeMinutes = proto.typicalBedtimeMinutes.takeIf { it in 0..1439 } ?: 1320,
+            typicalWakeTimeMinutes = proto.typicalWakeTimeMinutes.takeIf { it in 0..1439 } ?: 420,
+            sleepDetectionBufferMinutes = proto.sleepDetectionBufferMinutes.takeIf { it >= 0 } ?: 30,
         )
         return SecureStoredUserProfile(
             profile = profile,
@@ -30,6 +34,10 @@ object UserProfileSchemaMapper {
             .setPreferredUnits(record.profile.preferredUnits)
             .setDailyStepGoal(record.profile.dailyStepGoal)
             .setDailyWaterGoalMl(record.profile.dailyWaterGoalMl)
+            .setNightlySleepGoalMinutes(record.profile.nightlySleepGoalMinutes)
+            .setTypicalBedtimeMinutes(record.profile.typicalBedtimeMinutes)
+            .setTypicalWakeTimeMinutes(record.profile.typicalWakeTimeMinutes)
+            .setSleepDetectionBufferMinutes(record.profile.sleepDetectionBufferMinutes)
             .setSchemaVersion(record.schemaVersion)
             .setMigrationState(record.migrationState.toProto())
             .setMigratedAtEpochMs(record.migratedAtEpochMs)
@@ -59,6 +67,10 @@ object UserProfileSchemaMapper {
                 preferredUnits = snapshot.preferredUnits?.takeIf { it.isNotBlank() } ?: "metric",
                 dailyStepGoal = snapshot.dailyStepGoal?.takeIf { it > 0 } ?: 10000,
                 dailyWaterGoalMl = snapshot.dailyWaterGoalMl?.takeIf { it > 0 } ?: 2000,
+                nightlySleepGoalMinutes = 480,
+                typicalBedtimeMinutes = 1320,
+                typicalWakeTimeMinutes = 420,
+                sleepDetectionBufferMinutes = 30,
             ),
             schemaVersion = SecureStoredUserProfile.CURRENT_SCHEMA_VERSION,
             migrationState = ProfileMigrationState.NONE,
@@ -81,4 +93,3 @@ private fun ProfileMigrationState.toProto(): MigrationStateProto = when (this) {
     ProfileMigrationState.COMPLETE -> MigrationStateProto.MIGRATION_STATE_COMPLETE
     ProfileMigrationState.FAILED -> MigrationStateProto.MIGRATION_STATE_FAILED
 }
-

@@ -12,6 +12,7 @@ import com.example.productivityapp.data.RepositoryProvider
 import com.example.productivityapp.app.ui.home.HomeScreen as AppHomeScreen
 import com.example.productivityapp.app.ui.water.WaterIntakeScreen as AppWaterScreen
 import com.example.productivityapp.service.MidnightResetWorker
+import com.example.productivityapp.service.SleepMaintenanceWorker
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -32,6 +33,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         MidnightResetWorker.schedule(applicationContext)
+        SleepMaintenanceWorker.schedule(applicationContext)
 
         setContent {
             ProductivityAppTheme {

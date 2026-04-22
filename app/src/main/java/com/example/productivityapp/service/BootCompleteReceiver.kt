@@ -10,7 +10,7 @@ class BootCompleteReceiver : BroadcastReceiver() {
         val appContext = context?.applicationContext ?: return
         if (intent?.action == Intent.ACTION_BOOT_COMPLETED) {
             MidnightResetWorker.schedule(appContext)
+            SleepMaintenanceWorker.schedule(appContext)
         }
     }
 }
-

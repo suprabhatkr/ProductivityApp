@@ -27,6 +27,10 @@ class EncryptedProtoUserProfileStoreTest {
                 preferredUnits = "metric",
                 dailyStepGoal = 9000,
                 dailyWaterGoalMl = 2300,
+                nightlySleepGoalMinutes = 495,
+                typicalBedtimeMinutes = 1370,
+                typicalWakeTimeMinutes = 410,
+                sleepDetectionBufferMinutes = 25,
             ),
             migrationState = ProfileMigrationState.MIGRATING,
             migratedAtEpochMs = 42L,
@@ -55,4 +59,3 @@ class EncryptedProtoUserProfileStoreTest {
         assertEquals(SecureStoredUserProfile.CURRENT_SCHEMA_VERSION, restored.schemaVersion)
     }
 }
-
