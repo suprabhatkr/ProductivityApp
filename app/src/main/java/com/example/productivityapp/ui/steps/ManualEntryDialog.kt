@@ -13,6 +13,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.testTag
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -44,7 +46,9 @@ fun ManualEntryDialog(show: Boolean, onDismiss: () -> Unit, onAdd: (Int) -> Unit
                     onValueChange = { input = it.filter { ch -> ch.isDigit() }.take(6) },
                     label = { Text("Steps") },
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .semantics { testTag = "custom_step_input" },
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedTextColor = dialogContentColor,
                         unfocusedTextColor = dialogContentColor,
@@ -59,6 +63,7 @@ fun ManualEntryDialog(show: Boolean, onDismiss: () -> Unit, onAdd: (Int) -> Unit
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(
                         onClick = { val cur = input.toIntOrNull() ?: 0; input = (cur + 100).toString() },
+                        modifier = Modifier.semantics { testTag = "quick_add_100" },
                         colors = ButtonDefaults.buttonColors(
                             containerColor = buttonContainerColor,
                             contentColor = buttonContentColor,
@@ -66,6 +71,7 @@ fun ManualEntryDialog(show: Boolean, onDismiss: () -> Unit, onAdd: (Int) -> Unit
                     ) { Text("+100") }
                     Button(
                         onClick = { val cur = input.toIntOrNull() ?: 0; input = (cur + 500).toString() },
+                        modifier = Modifier.semantics { testTag = "quick_add_500" },
                         colors = ButtonDefaults.buttonColors(
                             containerColor = buttonContainerColor,
                             contentColor = buttonContentColor,

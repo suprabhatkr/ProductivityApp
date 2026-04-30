@@ -5,6 +5,7 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.example.productivityapp.data.AppDatabase
 import com.example.productivityapp.data.entities.RunEntity
+import com.example.productivityapp.data.entities.RunPointEntity
 import com.example.productivityapp.util.PolylineUtils
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -49,7 +50,14 @@ class RunRepositoryAddPointUnitTest {
         )
         val id = repo.startRun(run)
         // add a new location point
-        repo.addLocationPoint(id, 34.56, 78.90, now + 1000)
+        repo.addLocationPoint(
+            RunPointEntity(
+                runId = id,
+                lat = 34.56,
+                lon = 78.90,
+                tsMs = now + 1000,
+            )
+        )
 
         val fetched = repo.getRunById(id)
         assertEquals(id, fetched?.id)
@@ -64,4 +72,3 @@ class RunRepositoryAddPointUnitTest {
         assertEquals(1, db.runPointDao().countByRunId(id))
     }
 }
-

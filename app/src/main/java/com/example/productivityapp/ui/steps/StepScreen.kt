@@ -221,7 +221,7 @@ fun StepScreenContent(
     onBack: () -> Unit = {},
 ) {
     var customManualSteps by rememberSaveable { mutableStateOf("") }
-    var showManualDialog by rememberSaveable { mutableStateOf(false) }
+    var showManualDialog by rememberSaveable(hasStepSensor) { mutableStateOf(!hasStepSensor) }
     val isDarkMode = androidx.compose.foundation.isSystemInDarkTheme()
     val stepCardBg = if (isDarkMode) BlendPrimaryDark else BlendLight
     val contentBg = MaterialTheme.colorScheme.background
@@ -260,18 +260,36 @@ fun StepScreenContent(
                 .padding(innerPadding),
             color = contentBg
         ) {
-            val ringHeight = 280.dp
-            val ringTopOffset = 16.dp
-
             Box(modifier = Modifier.fillMaxSize()) {
-                // Scrollable content below the pinned ring
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(top = ringHeight + ringTopOffset)
                         .padding(com.example.productivityapp.ui.theme.Spacing.large),
                     verticalArrangement = Arrangement.spacedBy(com.example.productivityapp.ui.theme.Spacing.large),
                 ) {
+                    item {
+                        StepHeroSection(
+                            steps = steps,
+                            dailyGoal = dailyGoal,
+                            weekly = weekly,
+                            onAddManualEntry = { showManualDialog = true },
+                        )
+                    }
+
+                    item {
+                        StepTrackingAccessCard(
+                            hasStepSensor = hasStepSensor,
+                            permissionUiState = permissionUiState,
+                            serviceRunning = serviceRunning,
+                            stepCardBg = stepCardBg,
+                            onStartService = onStartService,
+                            onStopService = onStopService,
+                            onRequestPermission = onRequestPermission,
+                            onOpenSettings = onOpenSettings,
+                            onOpenManualEntry = { showManualDialog = true },
+                        )
+                    }
+
                     item {
                         // Today's activity breakdown (morning / afternoon / evening)
                         val segmentsToShow = if (todaySegments.isNotEmpty()) todaySegments else listOf(
@@ -328,122 +346,171 @@ fun StepScreenContent(
                     item {
                         StepsWeeklyChart(values = weekly, dailyGoal = dailyGoal)
                     }
-
-
-                    item {
-                        if (!hasStepSensor) {
-                            Card(modifier = Modifier.fillMaxWidth(), colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = com.example.productivityapp.ui.theme.StepsAmber)) {
-                                Column(modifier = Modifier.padding(com.example.productivityapp.ui.theme.Spacing.large), verticalArrangement = Arrangement.spacedBy(com.example.productivityapp.ui.theme.Spacing.small)) {
-                                    Text("Automatic step tracking unavailable", style = MaterialTheme.typography.titleMedium)
-                                    Text("This device does not provide a hardware step counter sensor. You can still log steps manually.")
-                                    Button(onClick = { showManualDialog = true }, modifier = Modifier.semantics { testTag = "add_manual_button"; contentDescription = "Add steps manually" }) {
-                                        Text("Add Manually")
-                                    }
-                                }
-                            }
-                        } else {
-                            when (permissionUiState) {
-                                StepPermissionUiState.Granted -> {
-                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        Button(
-                                            onClick = {
-                                                if (serviceRunning) onStopService() else onStartService()
-                                            },
-                                            modifier = Modifier.semantics { testTag = "step_service_toggle"; contentDescription = if (!serviceRunning) "Start automatic step tracking" else "Stop automatic step tracking" },
-                                        ) {
-                                            Text(if (!serviceRunning) "Start Step Service" else "Stop Step Service")
-                                        }
-                                    }
-                                }
-
-                                StepPermissionUiState.RationaleRequired -> {
-                                    AlertDialog(
-                                        onDismissRequest = {},
-                                        confirmButton = {
-                                            TextButton(onClick = onRequestPermission) {
-                                                Text("Allow")
-                                            }
-                                        },
-                                        dismissButton = {
-                                            TextButton(onClick = {}) {
-                                                Text("Use manual entry")
-                                            }
-                                        },
-                                        title = { Text("Activity recognition") },
-                                        text = { Text("This app needs activity recognition to count your steps automatically. You can continue using manual entry if you prefer.") },
-                                    )
-                                }
-
-                                StepPermissionUiState.RequestOrSettings -> {
-                                    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = stepCardBg)) {
-                                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                            Text("Automatic tracking permission", style = MaterialTheme.typography.titleMedium)
-                                            Text("Grant activity recognition to count steps automatically, or continue with manual entry.")
-                                            Button(onClick = onRequestPermission, modifier = Modifier.semantics { testTag = "request_permission_button"; contentDescription = "Request activity recognition permission" }) {
-                                                Text("Grant Activity Recognition")
-                                            }
-                                            Spacer(modifier = Modifier.height(com.example.productivityapp.ui.theme.Spacing.tiny))
-                                            OutlinedButton(onClick = onOpenSettings, modifier = Modifier.semantics { testTag = "open_settings_button"; contentDescription = "Open app settings" }) {
-                                                Text("Open app settings")
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
                 }
 
-                // Pinned circular ring at the top
-                Box(modifier = Modifier
-                    .fillMaxWidth()
-                    .height(ringHeight)
-                    .align(Alignment.TopCenter)) {
+                if (showManualDialog) {
+                    ManualEntryDialog(show = true, onDismiss = { showManualDialog = false }, onAdd = { amount ->
+                        onAddManualSteps(amount)
+                        showManualDialog = false
+                    })
+                }
+            }
+        }
+    }
+}
 
-                    // compute trend compared to previous day (left side)
-                    val prev = if (weekly.size >= 2) weekly[weekly.lastIndex - 1] else 0
-                    val delta = steps - prev
-                    val (trendText, trendColor) = if (prev > 0) {
-                        val pct = ((delta.toDouble() / prev.toDouble()) * 100.0).toInt()
-                        if (delta >= 0) ("${kotlin.math.abs(pct)}% up ↑" to Color(0xFF2ECC71)) else ("${kotlin.math.abs(pct)}% down ↓" to Color(0xFFEF4444))
-                    } else {
-                        if (steps > 0) ("New" to Color(0xFF2ECC71)) else ("0%" to MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f))
+@Composable
+private fun StepHeroSection(
+    steps: Int,
+    dailyGoal: Int,
+    weekly: List<Int>,
+    onAddManualEntry: () -> Unit,
+) {
+    val prev = if (weekly.size >= 2) weekly[weekly.lastIndex - 1] else 0
+    val delta = steps - prev
+    val (trendText, trendColor) = if (prev > 0) {
+        val pct = ((delta.toDouble() / prev.toDouble()) * 100.0).toInt()
+        if (delta >= 0) {
+            "${kotlin.math.abs(pct)}% up ↑" to Color(0xFF2ECC71)
+        } else {
+            "${kotlin.math.abs(pct)}% down ↓" to Color(0xFFEF4444)
+        }
+    } else {
+        if (steps > 0) {
+            "New" to Color(0xFF2ECC71)
+        } else {
+            "0%" to MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+        }
+    }
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        StepRing(
+            steps = steps,
+            goal = dailyGoal,
+            progress = if (dailyGoal > 0) (steps.toFloat() / dailyGoal.toFloat()).coerceIn(0f, 1f) else 0f,
+            modifier = Modifier.padding(top = 16.dp)
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                trendText,
+                color = trendColor,
+                style = MaterialTheme.typography.bodyLarge,
+                modifier = Modifier.padding(start = 24.dp)
+            )
+            Box(modifier = Modifier.padding(end = 32.dp)) {
+                AddStepsFab(onClick = onAddManualEntry)
+            }
+        }
+    }
+}
+
+@Composable
+private fun StepTrackingAccessCard(
+    hasStepSensor: Boolean,
+    permissionUiState: StepPermissionUiState,
+    serviceRunning: Boolean,
+    stepCardBg: Color,
+    onStartService: () -> Unit,
+    onStopService: () -> Unit,
+    onRequestPermission: () -> Unit,
+    onOpenSettings: () -> Unit,
+    onOpenManualEntry: () -> Unit,
+) {
+    if (!hasStepSensor) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = com.example.productivityapp.ui.theme.StepsAmber)
+        ) {
+            Column(
+                modifier = Modifier.padding(com.example.productivityapp.ui.theme.Spacing.large),
+                verticalArrangement = Arrangement.spacedBy(com.example.productivityapp.ui.theme.Spacing.small)
+            ) {
+                Text("Automatic step tracking unavailable", style = MaterialTheme.typography.titleMedium)
+                Text("This device does not provide a hardware step counter sensor. You can still log steps manually.")
+                Button(
+                    onClick = onOpenManualEntry,
+                    modifier = Modifier.semantics {
+                        testTag = "add_manual_button"
+                        contentDescription = "Add steps manually"
                     }
+                ) {
+                    Text("Add Manually")
+                }
+            }
+        }
+        return
+    }
 
-                    Column(modifier = Modifier
-                        .fillMaxWidth()
-                        .align(Alignment.TopCenter),
-                        horizontalAlignment = Alignment.CenterHorizontally) {
-
-                        // ring centered
-                        Box(contentAlignment = Alignment.Center) {
-                            StepRing(
-                                steps = steps,
-                                goal = dailyGoal,
-                                progress = if (dailyGoal > 0) (steps.toFloat() / dailyGoal.toFloat()).coerceIn(0f,1f) else 0f,
-                                modifier = Modifier.padding(top = ringTopOffset)
-                            )
+    when (permissionUiState) {
+        StepPermissionUiState.Granted -> {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = {
+                        if (serviceRunning) onStopService() else onStartService()
+                    },
+                    modifier = Modifier.semantics {
+                        testTag = "step_service_toggle"
+                        contentDescription = if (!serviceRunning) {
+                            "Start automatic step tracking"
+                        } else {
+                            "Stop automatic step tracking"
                         }
+                    },
+                ) {
+                    Text(if (!serviceRunning) "Start Step Service" else "Stop Step Service")
+                }
+            }
+        }
 
-                        Spacer(modifier = Modifier.height(2.dp))
-
-                        // Row below the ring for trend (left) and add button (right)
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                            Box(modifier = Modifier.padding(start = 24.dp, top = 0.dp).offset(y = (-6).dp)) {
-                                Text(trendText, color = trendColor, style = MaterialTheme.typography.bodyLarge)
-                            }
-                            Box(modifier = Modifier.padding(end = 32.dp, top = 0.dp).offset(y = (-6).dp)) {
-                                AddStepsFab(onClick = { showManualDialog = true })
-                            }
-                        }
+        StepPermissionUiState.RationaleRequired -> {
+            AlertDialog(
+                onDismissRequest = {},
+                confirmButton = {
+                    TextButton(onClick = onRequestPermission) {
+                        Text("Allow")
                     }
+                },
+                dismissButton = {
+                    TextButton(onClick = {}) {
+                        Text("Use manual entry")
+                    }
+                },
+                title = { Text("Activity recognition") },
+                text = { Text("This app needs activity recognition to count your steps automatically. You can continue using manual entry if you prefer.") },
+            )
+        }
 
-                    // Manual entry dialog (popup)
-                    if (showManualDialog) {
-                        ManualEntryDialog(show = true, onDismiss = { showManualDialog = false }, onAdd = { amount ->
-                            onAddManualSteps(amount)
-                            showManualDialog = false
-                        })
+        StepPermissionUiState.RequestOrSettings -> {
+            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = stepCardBg)) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Automatic tracking permission", style = MaterialTheme.typography.titleMedium)
+                    Text("Grant activity recognition to count steps automatically, or continue with manual entry.")
+                    Button(
+                        onClick = onRequestPermission,
+                        modifier = Modifier.semantics {
+                            testTag = "request_permission_button"
+                            contentDescription = "Request activity recognition permission"
+                        }
+                    ) {
+                        Text("Grant Activity Recognition")
+                    }
+                    Spacer(modifier = Modifier.height(com.example.productivityapp.ui.theme.Spacing.tiny))
+                    OutlinedButton(
+                        onClick = onOpenSettings,
+                        modifier = Modifier.semantics {
+                            testTag = "open_settings_button"
+                            contentDescription = "Open app settings"
+                        }
+                    ) {
+                        Text("Open app settings")
                     }
                 }
             }

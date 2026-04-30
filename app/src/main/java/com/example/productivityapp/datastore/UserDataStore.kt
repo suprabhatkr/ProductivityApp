@@ -114,6 +114,16 @@ class UserDataStore(
             prefs.remove(key)
             prefs.remove(entriesKey)
         }
+        val protoStore = createWaterProtoStore()
+        protoStore.updateData { current ->
+            if (!current.daysMap.containsKey(date)) {
+                current
+            } else {
+                current.toBuilder()
+                    .removeDays(date)
+                    .build()
+            }
+        }
     }
     /** Observe the list of water entries for a date. Proto-backed. */
     fun observeEntriesForDate(date: String): Flow<List<WaterEntry>> {

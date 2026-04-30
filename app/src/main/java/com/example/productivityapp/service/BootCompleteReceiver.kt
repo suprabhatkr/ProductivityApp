@@ -9,8 +9,8 @@ class BootCompleteReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context?, intent: Intent?) {
         val appContext = context?.applicationContext ?: return
         if (intent?.action == Intent.ACTION_BOOT_COMPLETED) {
-            MidnightResetWorker.schedule(appContext)
-            SleepMaintenanceWorker.schedule(appContext)
+            runCatching { MidnightResetWorker.schedule(appContext) }
+            runCatching { SleepMaintenanceWorker.schedule(appContext) }
         }
     }
 }

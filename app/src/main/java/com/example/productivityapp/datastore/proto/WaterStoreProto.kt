@@ -38,6 +38,8 @@ class WaterStoreProto private constructor(
 
         fun putDays(key: String, value: WaterDayProto) = apply { daysMutable[key] = value }
 
+        fun removeDays(key: String) = apply { daysMutable.remove(key) }
+
         fun build(): WaterStoreProto = WaterStoreProto(daysMap = daysMutable.toMap())
     }
 
@@ -87,4 +89,3 @@ class WaterStoreProto private constructor(
         fun parseFrom(bytes: ByteArray): WaterStoreProto = parseFrom(ByteArrayInputStream(bytes))
     }
 }
-

@@ -13,10 +13,10 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.osmdroid.util.GeoPoint
-import org.osmdroid.views.MapView
-import org.osmdroid.views.overlay.Marker
-import org.osmdroid.views.overlay.Polyline
+import org.maplibre.android.annotations.Marker
+import org.maplibre.android.annotations.Polyline
+import org.maplibre.android.geometry.LatLng
+import org.maplibre.android.maps.MapLibreMap
 import kotlin.math.abs
 
 @RunWith(AndroidJUnit4::class)
@@ -29,25 +29,25 @@ class RunMapViewTest {
 
     @Test
     fun drawsPolylineAndMarkersForRecordedRun() {
-        var mapView: MapView? = null
+        var map: MapLibreMap? = null
 
         composeRule.setContent {
             MaterialTheme {
                 RunMapView(
                     polylineEncoded = encodedFixture,
-                    onMapReady = { mapView = it },
+                    onMapReady = { map = it },
                 )
             }
         }
 
-        composeRule.waitUntil(timeoutMillis = 5_000) {
-            mapView?.overlays?.any { it is Polyline } == true
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            map?.annotations?.any { it is Polyline } == true
         }
 
         composeRule.runOnUiThread {
-            val map = requireNotNull(mapView)
-            val polyline = map.overlays.filterIsInstance<Polyline>().singleOrNull()
-            val markers = map.overlays.filterIsInstance<Marker>()
+            val readyMap = requireNotNull(map)
+            val polyline = readyMap.annotations.filterIsInstance<Polyline>().firstOrNull()
+            val markers = readyMap.annotations.filterIsInstance<Marker>()
             assertNotNull(polyline)
             assertTrue(markers.size >= 2)
         }
@@ -55,7 +55,7 @@ class RunMapViewTest {
 
     @Test
     fun replayModeCentersOnReplayPoint() {
-        var mapView: MapView? = null
+        var map: MapLibreMap? = null
 
         composeRule.setContent {
             var replayIndex by remember { mutableIntStateOf(0) }
@@ -64,21 +64,21 @@ class RunMapViewTest {
                     polylineEncoded = encodedFixture,
                     replayPointIndex = replayIndex,
                     followRoute = true,
-                    onMapReady = { mapView = it },
+                    onMapReady = { map = it },
                 )
             }
         }
 
-        composeRule.waitUntil(timeoutMillis = 5_000) {
-            mapView?.overlays?.any { it is Polyline } == true
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            map?.annotations?.any { it is Polyline } == true
         }
 
         composeRule.runOnUiThread {
-            val map = requireNotNull(mapView)
-            val center = map.mapCenter as GeoPoint
+            val readyMap = requireNotNull(map)
+            val center = requireNotNull(readyMap.cameraPosition.target)
             assertWithin(center.latitude, 38.5)
             assertWithin(center.longitude, -120.2)
-            assertTrue(map.overlays.filterIsInstance<Marker>().any { it.title == "Replay position" })
+            assertTrue(readyMap.annotations.filterIsInstance<Marker>().any { it.title == "Replay position" })
         }
     }
 
@@ -86,5 +86,3 @@ class RunMapViewTest {
         assertTrue("expected=$expected actual=$actual", abs(actual - expected) <= epsilon)
     }
 }
-
-

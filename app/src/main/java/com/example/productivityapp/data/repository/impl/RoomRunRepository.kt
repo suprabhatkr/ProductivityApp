@@ -9,10 +9,19 @@ import kotlinx.coroutines.flow.Flow
 
 class RoomRunRepository(private val db: AppDatabase) : RunRepository {
     private val dao: RunDao = db.runDao()
+    private val pointDao = db.runPointDao()
 
     override fun observeRuns(): Flow<List<RunEntity>> = dao.observeAll()
 
+    override fun observeLatestRun(): Flow<RunEntity?> = dao.observeLatest()
+
+    override fun observeRun(id: Long): Flow<RunEntity?> = dao.observeById(id)
+
+    override fun observeRunPoints(runId: Long): Flow<List<RunPointEntity>> = pointDao.observeByRunId(runId)
+
     override suspend fun getRunById(id: Long): RunEntity? = dao.getById(id)
+
+    override suspend fun getRunPoints(runId: Long): List<RunPointEntity> = pointDao.getByRunId(runId)
 
     override suspend fun startRun(run: RunEntity): Long = dao.insert(run)
 
@@ -22,9 +31,9 @@ class RoomRunRepository(private val db: AppDatabase) : RunRepository {
         // No-op here; caller should update run endTime/duration and call updateRun
     }
 
-    override suspend fun addLocationPoint(runId: Long, lat: Double, lon: Double, tsMs: Long) {
+    override suspend fun addLocationPoint(point: RunPointEntity) {
         // Fetch existing run
-        val existing = dao.getById(runId) ?: return
+        val existing = dao.getById(point.runId) ?: return
 
         // Decode existing polyline (if encoded) or migrate CSV-style points
         val points: MutableList<Pair<Double, Double>> = mutableListOf()
@@ -39,7 +48,7 @@ class RoomRunRepository(private val db: AppDatabase) : RunRepository {
         }
 
         // append new point
-        points.add(Pair(lat, lon))
+        points.add(Pair(point.lat, point.lon))
 
         // encode and persist atomically
         val encoded = com.example.productivityapp.util.PolylineUtils.encode(points)
@@ -47,8 +56,7 @@ class RoomRunRepository(private val db: AppDatabase) : RunRepository {
         dao.update(updated)
 
         // also persist individual point into run_points table for future queries
-        val pointEntities = listOf(RunPointEntity(runId = runId, lat = lat, lon = lon, tsMs = tsMs))
-        db.runPointDao().insertAll(pointEntities)
+        pointDao.insert(point)
     }
 
     private fun looksLikeEncodedPolyline(s: String): Boolean {
@@ -68,4 +76,3 @@ class RoomRunRepository(private val db: AppDatabase) : RunRepository {
         return pairs
     }
 }
-
