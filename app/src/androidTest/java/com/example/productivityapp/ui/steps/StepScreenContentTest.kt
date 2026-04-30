@@ -1,10 +1,13 @@
 package com.example.productivityapp.ui.steps
 
 import androidx.activity.ComponentActivity
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import org.junit.Rule
 import org.junit.Test
@@ -31,6 +34,8 @@ class StepScreenContentTest {
         }
 
         composeRule.onNodeWithText("Automatic step tracking unavailable").performScrollTo().assertIsDisplayed()
+        composeRule.onAllNodesWithTag("custom_step_input").assertCountEquals(0)
+        composeRule.onNodeWithTag("add_manual_button").performScrollTo().performClick()
         composeRule.onNodeWithTag("custom_step_input").assertIsDisplayed()
         composeRule.onNodeWithTag("quick_add_100").assertIsDisplayed()
     }
@@ -56,4 +61,3 @@ class StepScreenContentTest {
         composeRule.onNodeWithTag("open_settings_button").performScrollTo().assertIsDisplayed()
     }
 }
-

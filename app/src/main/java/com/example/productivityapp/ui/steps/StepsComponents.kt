@@ -29,6 +29,8 @@ import com.example.productivityapp.ui.theme.BlendLight
 import com.example.productivityapp.ui.theme.BlendPrimaryDark
 import com.example.productivityapp.ui.theme.BlendDarkBackground
 import com.example.productivityapp.ui.theme.BlendPrimary
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.Arrangement
@@ -56,6 +58,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material.icons.filled.BrightnessHigh
+import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.NightsStay
 import androidx.compose.material.icons.filled.DirectionsWalk
 
@@ -65,7 +68,7 @@ fun StepSegmentIcon(label: String, modifier: Modifier = Modifier) {
         "morning" -> Icons.Filled.WbSunny
         "afternoon" -> Icons.Filled.BrightnessHigh
         "evening" -> Icons.Filled.NightsStay
-        "night" -> Icons.Filled.NightsStay
+        "night" -> Icons.Filled.DarkMode
         else -> Icons.Filled.DirectionsWalk
     }
     Icon(imageVector = image, contentDescription = label, tint = MaterialTheme.colorScheme.primary, modifier = modifier)
@@ -169,72 +172,85 @@ fun TodayActivity(segments: List<Pair<String, Int>>, modifier: Modifier = Modifi
 
 @Composable
 fun StepsWeeklyChart(values: List<Int>, dailyGoal: Int, modifier: Modifier = Modifier) {
-    // Use the maximum value from the past week (not the goal) as the scale reference
     val maxVal = (values.maxOrNull() ?: 1).coerceAtLeast(1)
-    val maxBarHeight = 120.dp // fixed maximum bar height inside the card
-    val barWidth = 28.dp // slightly thicker bars
-    val gap = 8.dp // gap between columns
-
     val isDark = androidx.compose.foundation.isSystemInDarkTheme()
     val cardBg = if (isDark) BlendPrimaryDark else BlendLight
-    Card(modifier = modifier.fillMaxWidth().semantics { testTag = "steps_weekly_chart"; contentDescription = "Steps over the last 7 days" }, colors = CardDefaults.cardColors(containerColor = cardBg)) {
-        val selectedIndex = remember { mutableStateOf(-1) }
+    val trackColor = if (isDark) StepsAmber.copy(alpha = 0.30f) else StepsAmber.copy(alpha = 0.18f)
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .semantics {
+                testTag = "steps_weekly_chart"
+                contentDescription = "Steps over the last 7 days"
+            },
+        colors = CardDefaults.cardColors(containerColor = cardBg)
+    ) {
         val today = LocalDate.now()
-
-        Row(
-            modifier = Modifier
-                .padding(Spacing.large)
-                .height(maxBarHeight + 40.dp), // reserve space for labels below
-            verticalAlignment = Alignment.Bottom,
-            horizontalArrangement = Arrangement.spacedBy(gap)
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            val density = LocalDensity.current
-
-            values.forEachIndexed { index, v ->
-                val ratio = if (maxVal > 0) (v.toFloat() / maxVal.toFloat()).coerceIn(0f, 1f) else 0f
-                // compute target height relative to fixed maxBarHeight
-                val targetHeight = with(density) { (maxBarHeight.toPx() * ratio).toDp() }.coerceAtLeast(8.dp)
-                val animHeight by animateDpAsState(targetValue = targetHeight)
-
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Last 7 days", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        "Steps by day",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Box(
                     modifier = Modifier
-                        .weight(1f)
-                        .clickable { selectedIndex.value = if (selectedIndex.value == index) -1 else index },
-                    verticalArrangement = Arrangement.Bottom
-                ) {
-                    // Bar area (fixed height) with bar bottom-aligned
-                    Box(
-                        modifier = Modifier
-                            .height(maxBarHeight)
-                            .fillMaxWidth(),
-                        contentAlignment = Alignment.BottomCenter
+                        .size(12.dp)
+                        .background(StepsAmber, RoundedCornerShape(999.dp))
+                )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Bottom,
+            ) {
+                values.forEachIndexed { index, value ->
+                    val ratio = if (maxVal > 0) (value.toFloat() / maxVal.toFloat()).coerceIn(0f, 1f) else 0f
+                    val animHeight by animateDpAsState(targetValue = (112 * ratio).coerceAtLeast(8f).dp, label = "stepsBarHeight")
+                    val labelDate = today.minusDays((values.size - 1 - index).toLong())
+                    val dayLabel = labelDate.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.ENGLISH).uppercase(Locale.ENGLISH)
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
+                        Text(stepChartValueLabel(value), style = MaterialTheme.typography.labelSmall)
                         Box(
                             modifier = Modifier
-                                .width(barWidth)
+                                .width(22.dp)
                                 .height(animHeight)
                                 .background(
-                                    color = if (index == values.lastIndex) StepsAmberDark else StepsAmber.copy(alpha = 0.9f),
-                                    shape = RoundedCornerShape(6.dp)
+                                    Brush.verticalGradient(
+                                        colors = listOf(
+                                            if (index == values.lastIndex) StepsAmberDark else StepsAmber,
+                                            trackColor,
+                                        )
+                                    ),
+                                    RoundedCornerShape(999.dp)
                                 )
                         )
+                        Text(dayLabel, style = MaterialTheme.typography.labelMedium)
                     }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    // Day initial (S M T W T F S)
-                    val labelDate = today.minusDays((values.size - 1 - index).toLong())
-                    val initial = labelDate.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.ENGLISH).substring(0, 1).uppercase(Locale.ENGLISH)
-                    Text(initial, style = MaterialTheme.typography.labelSmall)
-
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    // Numeric value below the day initial
-                    Text((v).toString(), style = MaterialTheme.typography.labelSmall)
                 }
             }
         }
     }
 }
 
+private fun stepChartValueLabel(value: Int): String {
+    return if (value >= 1_000) {
+        String.format(Locale.US, "%.1fk", value / 1_000f)
+    } else {
+        value.toString()
+    }
+}

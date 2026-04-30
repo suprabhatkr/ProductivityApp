@@ -10,6 +10,7 @@ import android.net.Uri
 import android.provider.Settings
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -44,7 +45,9 @@ import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.Scaffold
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import com.example.productivityapp.ui.theme.StepsAmber
 import com.example.productivityapp.ui.theme.StepsAmberSoft
@@ -58,6 +61,7 @@ import com.example.productivityapp.ui.theme.TextPrimary
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.graphics.graphicsLayer
@@ -220,11 +224,12 @@ fun StepScreenContent(
     onOpenSettings: () -> Unit,
     onBack: () -> Unit = {},
 ) {
-    var customManualSteps by rememberSaveable { mutableStateOf("") }
-    var showManualDialog by rememberSaveable(hasStepSensor) { mutableStateOf(!hasStepSensor) }
+    var showManualDialog by rememberSaveable { mutableStateOf(false) }
     val isDarkMode = androidx.compose.foundation.isSystemInDarkTheme()
     val stepCardBg = if (isDarkMode) BlendPrimaryDark else BlendLight
-    val contentBg = MaterialTheme.colorScheme.background
+    val statCardBg = if (isDarkMode) StepsSurface else MaterialTheme.colorScheme.surface
+    val statIconBg = if (isDarkMode) BlendDarkBackground else BlendLight
+    val contentBg = if (isDarkMode) StepsBackground else MaterialTheme.colorScheme.background
     val topBarBg = if (isDarkMode) BlendPrimaryDark else BlendLight
     val topBarTitleColor = if (isDarkMode) Color.White else TextPrimary
     val weekly = if (weeklySteps.isNotEmpty()) weeklySteps else remember(steps, dailyGoal) {
@@ -249,7 +254,7 @@ fun StepScreenContent(
                     containerColor = topBarBg,
                     titleContentColor = topBarTitleColor
                 ),
-                modifier = Modifier.height(85.dp)
+                expandedHeight = 56.dp,
             )
         },
         containerColor = contentBg
@@ -264,7 +269,8 @@ fun StepScreenContent(
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(com.example.productivityapp.ui.theme.Spacing.large),
+                        .padding(horizontal = com.example.productivityapp.ui.theme.Spacing.large)
+                        .padding(bottom = com.example.productivityapp.ui.theme.Spacing.large),
                     verticalArrangement = Arrangement.spacedBy(com.example.productivityapp.ui.theme.Spacing.large),
                 ) {
                     item {
@@ -311,30 +317,42 @@ fun StepScreenContent(
                             Row(modifier = Modifier.padding(12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Card(
                                     modifier = Modifier.weight(1f),
-                                    colors = CardDefaults.cardColors(containerColor = if (isDarkMode) com.example.productivityapp.ui.theme.BlendPrimaryDark else MaterialTheme.colorScheme.surface)
+                                    colors = CardDefaults.cardColors(containerColor = statCardBg)
                                 ) {
                                     Column(modifier = Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                                        StatIcon("Active", modifier = Modifier.size(28.dp))
+                                        Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                                            StatIconBadge(background = statIconBg) {
+                                                StatIcon("Active", modifier = Modifier.size(24.dp))
+                                            }
+                                        }
                                         Text("Active", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
                                         Text("${(steps*0.02).toInt()} kcal", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                                     }
                                 }
                                 Card(
                                     modifier = Modifier.weight(1f),
-                                    colors = CardDefaults.cardColors(containerColor = if (isDarkMode) com.example.productivityapp.ui.theme.BlendPrimaryDark else MaterialTheme.colorScheme.surface)
+                                    colors = CardDefaults.cardColors(containerColor = statCardBg)
                                 ) {
                                     Column(modifier = Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                                        StatIcon("Distance", modifier = Modifier.size(28.dp))
+                                        Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                                            StatIconBadge(background = statIconBg) {
+                                                StatIcon("Distance", modifier = Modifier.size(24.dp))
+                                            }
+                                        }
                                         Text("Distance", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
                                         Text(String.format("%.2f km", steps * 0.0008), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                                     }
                                 }
                                 Card(
                                     modifier = Modifier.weight(1f),
-                                    colors = CardDefaults.cardColors(containerColor = if (isDarkMode) com.example.productivityapp.ui.theme.BlendPrimaryDark else MaterialTheme.colorScheme.surface)
+                                    colors = CardDefaults.cardColors(containerColor = statCardBg)
                                 ) {
                                     Column(modifier = Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                                        StatIcon("Active time", modifier = Modifier.size(28.dp))
+                                        Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                                            StatIconBadge(background = statIconBg) {
+                                                StatIcon("Active time", modifier = Modifier.size(24.dp))
+                                            }
+                                        }
                                         Text("Active time", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
                                         Text("${(steps/100).coerceAtLeast(0)} min", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                                     }
@@ -360,12 +378,30 @@ fun StepScreenContent(
 }
 
 @Composable
+private fun StatIconBadge(
+    background: Color,
+    content: @Composable () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .size(42.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(background),
+        contentAlignment = Alignment.Center,
+    ) {
+        content()
+    }
+}
+
+@Composable
 private fun StepHeroSection(
     steps: Int,
     dailyGoal: Int,
     weekly: List<Int>,
     onAddManualEntry: () -> Unit,
 ) {
+    val isDarkMode = isSystemInDarkTheme()
+    val heroSurface = if (isDarkMode) BlendPrimaryDark else Color.White
     val prev = if (weekly.size >= 2) weekly[weekly.lastIndex - 1] else 0
     val delta = steps - prev
     val (trendText, trendColor) = if (prev > 0) {
@@ -384,30 +420,43 @@ private fun StepHeroSection(
     }
 
     Column(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        Card(
+            colors = CardDefaults.cardColors(containerColor = heroSurface),
+            shape = RoundedCornerShape(999.dp),
+        ) {
+            Text(
+                text = "Today's steps",
+                modifier = Modifier.padding(horizontal = 18.dp, vertical = 10.dp),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+        }
         StepRing(
             steps = steps,
             goal = dailyGoal,
             progress = if (dailyGoal > 0) (steps.toFloat() / dailyGoal.toFloat()).coerceIn(0f, 1f) else 0f,
-            modifier = Modifier.padding(top = 16.dp)
+            background = heroSurface,
         )
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
+            StepTrendChip(
                 trendText,
-                color = trendColor,
-                style = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier.padding(start = 24.dp)
+                accent = trendColor,
+                surface = heroSurface,
             )
-            Box(modifier = Modifier.padding(end = 32.dp)) {
-                AddStepsFab(onClick = onAddManualEntry)
-            }
+            AddStepsFab(onClick = onAddManualEntry)
         }
     }
 }
@@ -519,36 +568,100 @@ private fun StepTrackingAccessCard(
 }
 
 @Composable
-private fun StepRing(steps: Int, goal: Int, progress: Float, modifier: Modifier = Modifier) {
-    val size = 240.dp
-    val isDarkLocal = androidx.compose.foundation.isSystemInDarkTheme()
-    Box(contentAlignment = Alignment.Center, modifier = modifier.size(size)) {
-        // No background glow — draw only the ring (blades removed)
-        Box(modifier = Modifier.size(size)) { /* intentionally empty */ }
-
-        Canvas(modifier = Modifier.size(size)) {
-            // subtle background track (mode-aware)
-            val bgStroke = Stroke(width = 36f, cap = StrokeCap.Round)
-            val unfilledColor = if (isDarkLocal) BlendPrimaryDark else TrackBeige
-            drawArc(color = unfilledColor, startAngle = -90f, sweepAngle = 360f, useCenter = false, style = bgStroke)
-            // main progress arc (filled)
-            val stroke = Stroke(width = 28f, cap = StrokeCap.Round)
-            drawArc(color = StepsAmber, startAngle = -90f, sweepAngle = 360f * progress, useCenter = false, style = stroke)
+private fun StepRing(
+    steps: Int,
+    goal: Int,
+    progress: Float,
+    background: Color,
+    modifier: Modifier = Modifier,
+) {
+    val safeProgress = progress.coerceIn(0f, 1f)
+    val isDarkLocal = isSystemInDarkTheme()
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = modifier
+            .size(260.dp)
+            .clip(RoundedCornerShape(36.dp))
+            .background(
+                Brush.radialGradient(
+                    colors = listOf(
+                        background,
+                        if (isDarkLocal) background.copy(alpha = 0.9f) else Color.White,
+                    )
+                )
+            )
+            .padding(14.dp),
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val strokeWidth = 28f
+            drawArc(
+                color = if (isDarkLocal) BlendPrimaryDark else TrackBeige,
+                startAngle = -90f,
+                sweepAngle = 360f,
+                useCenter = false,
+                style = Stroke(width = strokeWidth, cap = StrokeCap.Round),
+            )
+            drawArc(
+                color = StepsAmber,
+                startAngle = -90f,
+                sweepAngle = 360f * safeProgress,
+                useCenter = false,
+                style = Stroke(width = strokeWidth, cap = StrokeCap.Round),
+            )
+            drawCircle(
+                color = StepsAmber.copy(alpha = 0.10f),
+                radius = size.minDimension * 0.38f,
+                center = Offset(size.width / 2f, size.height / 2f),
+            )
         }
 
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
-                "$steps (${(progress * 100).toInt()}%)",
+                steps.toString(),
                 style = MaterialTheme.typography.headlineMedium.copy(
-                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                    fontWeight = FontWeight.Bold,
                     shadow = Shadow(color = StepsAmberSoft, blurRadius = 16f)
-                )
+                ),
+                color = MaterialTheme.colorScheme.onSurface,
             )
             Text(
-                "of $goal",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+                "of $goal steps",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                "${(safeProgress * 100).toInt()}% complete",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = StepsAmber,
+            )
+        }
+    }
+}
+
+@Composable
+private fun StepTrendChip(
+    text: String,
+    accent: Color,
+    surface: Color,
+) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = surface),
+        shape = RoundedCornerShape(999.dp),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(10.dp)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(accent)
+            )
+            Spacer(modifier = Modifier.size(10.dp))
+            Text(text, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
         }
     }
 }

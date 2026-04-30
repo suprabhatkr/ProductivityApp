@@ -5,7 +5,9 @@ import com.example.productivityapp.data.repository.RunRepository
 import com.example.productivityapp.data.repository.SleepRepository
 import com.example.productivityapp.data.repository.StepRepository
 import com.example.productivityapp.data.repository.UserProfileRepository
+import com.example.productivityapp.data.repository.WaterRepository
 import com.example.productivityapp.data.repository.impl.DataStoreUserProfileRepository
+import com.example.productivityapp.data.repository.impl.DataStoreWaterRepository
 import com.example.productivityapp.data.repository.impl.RoomRunRepository
 import com.example.productivityapp.data.repository.impl.RoomSleepRepository
 import com.example.productivityapp.data.repository.impl.RoomStepRepository
@@ -50,6 +52,14 @@ object RepositoryProvider {
     fun provideSleepRepository(context: Context): SleepRepository {
         val db = DatabaseProvider.getInstance(context)
         return RoomSleepRepository(db.sleepDao())
+    }
+
+    fun provideWaterRepository(context: Context): WaterRepository {
+        val appContext = context.applicationContext
+        return DataStoreWaterRepository(
+            dataStore = UserDataStore(appContext),
+            userProfileRepository = provideUserProfileRepository(appContext),
+        )
     }
 
     fun provideUserProfileRepository(context: Context): UserProfileRepository {

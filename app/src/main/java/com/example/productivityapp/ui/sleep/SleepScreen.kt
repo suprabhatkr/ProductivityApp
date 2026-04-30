@@ -370,6 +370,7 @@ fun SleepScreenContent(
                         Text("←", color = MaterialTheme.colorScheme.onSurface, fontSize = 18.sp)
                     }
                 },
+                expandedHeight = 48.dp,
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = surface,
                     titleContentColor = MaterialTheme.colorScheme.onSurface,
@@ -1183,9 +1184,19 @@ private fun SleepStateCard(
                         .background(accent)
                 )
                 Spacer(modifier = Modifier.width(10.dp))
-                Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text(
+                    title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
             }
-            Text(label, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            Text(
+                label,
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
             Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = tone)
         }
     }
@@ -1216,8 +1227,18 @@ private fun SleepTipCard(
                 )
                 Spacer(modifier = Modifier.width(10.dp))
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("Sleep tip", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                    Text(tip.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                    Text(
+                        "Sleep tip",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Text(
+                        tip.title,
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
                 }
                 IconButton(
                     onClick = onDismiss,
@@ -1255,7 +1276,12 @@ private fun SleepMetricCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(metric.title, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                Text(
+                    metric.title,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
                 Box(
                     modifier = Modifier
                         .size(10.dp)
@@ -1263,7 +1289,12 @@ private fun SleepMetricCard(
                         .background(metric.accent)
                 )
             }
-            Text(metric.value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text(
+                metric.value,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
             Text(metric.subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
@@ -1290,7 +1321,12 @@ private fun SleepWeeklyChart(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("Last 7 nights", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        "Last 7 nights",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
                     Text("Duration by night", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Box(
@@ -1314,7 +1350,11 @@ private fun SleepWeeklyChart(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        Text(formatHours(day.totalDurationSec), style = MaterialTheme.typography.labelSmall)
+                        Text(
+                            formatHours(day.totalDurationSec),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
                         Box(
                             modifier = Modifier
                                 .width(22.dp)
@@ -1326,7 +1366,11 @@ private fun SleepWeeklyChart(
                                     ),
                                 )
                         )
-                        Text(day.label, style = MaterialTheme.typography.labelMedium)
+                        Text(
+                            day.label,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
                     }
                 }
             }

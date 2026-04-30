@@ -25,6 +25,7 @@ import com.example.productivityapp.ui.sleep.SleepScreen
 import com.example.productivityapp.ui.steps.StepScreen
 import com.example.productivityapp.ui.settings.SettingsScreen
 import com.example.productivityapp.app.viewmodel.WaterViewModel
+import com.example.productivityapp.app.viewmodel.WaterViewModelFactory
 import com.example.productivityapp.ui.theme.ProductivityAppTheme
 import com.example.productivityapp.viewmodel.SettingsViewModel
 import com.example.productivityapp.viewmodel.SettingsViewModelFactory
@@ -46,7 +47,11 @@ class MainActivity : ComponentActivity() {
 
                         NavHost(navController = navController, startDestination = AppRoutes.HOME) {
                     composable(AppRoutes.HOME) {
-                        val waterVm: WaterViewModel = viewModel()
+                        val waterVm: WaterViewModel = viewModel(
+                            factory = WaterViewModelFactory(
+                                RepositoryProvider.provideWaterRepository(this@MainActivity)
+                            )
+                        )
                         AppHomeScreen(
                             onNavigateToSteps = { navController.navigate(AppRoutes.STEPS) },
                                     onNavigateToStepsLegacy = { navController.navigate(AppRoutes.STEPS_LEGACY) },
@@ -76,7 +81,11 @@ class MainActivity : ComponentActivity() {
                     }
                     composable(AppRoutes.SLEEP) { SleepScreen(onBack = { navController.popBackStack() }) }
                     composable(AppRoutes.WATER) {
-                        val waterVm: com.example.productivityapp.app.viewmodel.WaterViewModel = viewModel()
+                        val waterVm: com.example.productivityapp.app.viewmodel.WaterViewModel = viewModel(
+                            factory = WaterViewModelFactory(
+                                RepositoryProvider.provideWaterRepository(this@MainActivity)
+                            )
+                        )
                         AppWaterScreen(onBack = { navController.popBackStack() }, viewModel = waterVm)
                     }
                     composable(AppRoutes.SETTINGS) {
