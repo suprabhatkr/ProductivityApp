@@ -14,6 +14,10 @@ import com.example.productivityapp.datastore.UserDataStore
 import com.example.productivityapp.datastore.profile.EncryptedProtoUserProfileStore
 import com.example.productivityapp.datastore.profile.SharedPreferencesLegacyProfileReader
 import com.example.productivityapp.datastore.profile.UserProfileMigrationCoordinator
+import com.example.productivityapp.run.FileProviderRunShareFileWriter
+import com.example.productivityapp.run.MapLibreRunMapSnapshotRenderer
+import com.example.productivityapp.run.MediaCodecRunReplayVideoEncoder
+import com.example.productivityapp.run.RunReplayExporter
 
 object RepositoryProvider {
     private const val ENABLE_SECURE_PROFILE_MIGRATION = true
@@ -30,6 +34,17 @@ object RepositoryProvider {
     fun provideRunRepository(context: Context): RunRepository {
         val db = DatabaseProvider.getInstance(context)
         return RoomRunRepository(db)
+    }
+
+    fun provideRunReplayExporter(context: Context): RunReplayExporter {
+        val appContext = context.applicationContext
+        return RunReplayExporter(
+            context = appContext,
+            runRepository = provideRunRepository(appContext),
+            snapshotRenderer = MapLibreRunMapSnapshotRenderer(appContext),
+            videoEncoder = MediaCodecRunReplayVideoEncoder(),
+            shareFileWriter = FileProviderRunShareFileWriter(appContext),
+        )
     }
 
     fun provideSleepRepository(context: Context): SleepRepository {
@@ -68,4 +83,3 @@ object RepositoryProvider {
         return com.example.productivityapp.data.UiStateStore(context.applicationContext)
     }
 }
-

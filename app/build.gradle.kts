@@ -63,7 +63,7 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.work.runtime.ktx)
-    implementation(libs.osmdroid)
+    implementation(libs.maplibre)
     implementation(libs.play.services.location)
     implementation(libs.security.crypto)
     implementation(libs.accompanist.permissions)
@@ -114,5 +114,4 @@ tasks.register("verifyNoHardcodedRoutes") {
 tasks.matching { it.name.endsWith("Kotlin") && it.name.startsWith("compile") }.configureEach {
     dependsOn(tasks.named("verifyNoHardcodedRoutes"))
 }
-
 

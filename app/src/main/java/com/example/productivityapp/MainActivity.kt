@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
 import com.example.productivityapp.ui.debug.MigrationStatusOverlay
 import com.example.productivityapp.navigation.AppRoutes
+import com.example.productivityapp.ui.run.RunDetailsScreen
 import com.example.productivityapp.ui.run.RunScreen
 import com.example.productivityapp.ui.sleep.SleepScreen
 import com.example.productivityapp.ui.steps.StepScreen
@@ -60,7 +61,19 @@ class MainActivity : ComponentActivity() {
                     // Show the new ring-style screen at the canonical STEPS route and keep the older UI available
                     composable(AppRoutes.STEPS) { com.example.productivityapp.ui.steps.StepScreen(onBack = { navController.popBackStack() }) }
                     composable(AppRoutes.STEPS_LEGACY) { com.example.productivityapp.ui.step.StepScreen(onBack = { navController.popBackStack() }) }
-                    composable(AppRoutes.RUN) { RunScreen(onBack = { navController.popBackStack() }) }
+                    composable(AppRoutes.RUN) {
+                        RunScreen(
+                            onBack = { navController.popBackStack() },
+                            onOpenRunDetails = { runId -> navController.navigate(AppRoutes.runDetails(runId)) },
+                        )
+                    }
+                    composable(AppRoutes.RUN_DETAILS) { backStackEntry ->
+                        val runId = backStackEntry.arguments?.getString("runId")?.toLongOrNull()
+                        RunDetailsScreen(
+                            runId = runId,
+                            onBack = { navController.popBackStack() },
+                        )
+                    }
                     composable(AppRoutes.SLEEP) { SleepScreen(onBack = { navController.popBackStack() }) }
                     composable(AppRoutes.WATER) {
                         val waterVm: com.example.productivityapp.app.viewmodel.WaterViewModel = viewModel()

@@ -63,6 +63,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -389,9 +390,24 @@ fun SleepScreenContent(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(horizontal = 16.dp)
-                        .padding(top = 320.dp, bottom = 24.dp),
+                        .padding(bottom = 24.dp)
+                        .semantics { testTag = "sleep_content_list" },
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
+                    item {
+                        SleepHeroSection(
+                            progress = progress,
+                            sleepLabel = sleepLabel,
+                            goalLabel = goalLabel,
+                            trendText = trendText,
+                            trendColor = trendColor,
+                            surface = surface,
+                            surfaceAlt = surfaceAlt,
+                            track = track,
+                            accent = accent,
+                        )
+                    }
+
                     item {
                         SleepActionCard(
                             onStartNapTimer = onStartNapTimer,
@@ -511,22 +527,6 @@ fun SleepScreenContent(
                     }
                 }
 
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .align(Alignment.TopCenter),
-                    contentAlignment = Alignment.TopCenter,
-                ) {
-                    SleepRing(
-                        progress = progress,
-                        totalLabel = sleepLabel,
-                        goalLabel = goalLabel,
-                        accent = accent,
-                        track = track,
-                        background = surface,
-                    )
-                }
-
                 if (showWakeAlarmDialog) {
                     WakeAlarmDialog(
                         wakeAlarmTime = wakeAlarmTime,
@@ -594,6 +594,47 @@ fun SleepScreenContent(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun SleepHeroSection(
+    progress: Float,
+    sleepLabel: String,
+    goalLabel: String,
+    trendText: String,
+    trendColor: Color,
+    surface: Color,
+    surfaceAlt: Color,
+    track: Color,
+    accent: Color,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text(
+            "Tonight's progress",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        SleepRing(
+            progress = progress,
+            totalLabel = sleepLabel,
+            goalLabel = goalLabel,
+            accent = accent,
+            track = track,
+            background = surface,
+        )
+        SleepTrendChip(
+            text = trendText,
+            surface = surfaceAlt,
+            accent = trendColor,
+        )
     }
 }
 

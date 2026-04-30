@@ -5,6 +5,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performScrollTo
 import org.junit.Rule
 import org.junit.Test
 
@@ -29,7 +30,7 @@ class StepScreenContentTest {
             )
         }
 
-        composeRule.onNodeWithText("Automatic step tracking unavailable").assertIsDisplayed()
+        composeRule.onNodeWithText("Automatic step tracking unavailable").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithTag("custom_step_input").assertIsDisplayed()
         composeRule.onNodeWithTag("quick_add_100").assertIsDisplayed()
     }
@@ -51,9 +52,8 @@ class StepScreenContentTest {
             )
         }
 
-        composeRule.onNodeWithTag("request_permission_button").assertIsDisplayed()
-        composeRule.onNodeWithTag("open_settings_button").assertIsDisplayed()
+        composeRule.onNodeWithTag("request_permission_button").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithTag("open_settings_button").performScrollTo().assertIsDisplayed()
     }
 }
-
 

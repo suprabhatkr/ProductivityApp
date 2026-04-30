@@ -13,6 +13,12 @@ interface RunDao {
     @Query("SELECT * FROM runs ORDER BY startTime DESC")
     fun observeAll(): Flow<List<RunEntity>>
 
+    @Query("SELECT * FROM runs ORDER BY startTime DESC LIMIT 1")
+    fun observeLatest(): Flow<RunEntity?>
+
+    @Query("SELECT * FROM runs WHERE id = :id LIMIT 1")
+    fun observeById(id: Long): Flow<RunEntity?>
+
     @Query("SELECT * FROM runs WHERE id = :id LIMIT 1")
     suspend fun getById(id: Long): RunEntity?
 
@@ -25,4 +31,3 @@ interface RunDao {
     @Query("DELETE FROM runs WHERE id = :id")
     suspend fun deleteById(id: Long)
 }
-

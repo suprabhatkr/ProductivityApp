@@ -12,6 +12,7 @@ import androidx.annotation.VisibleForTesting
 import androidx.core.app.NotificationCompat
 import android.app.Service
 import com.example.productivityapp.data.RepositoryProvider
+import com.example.productivityapp.data.entities.RunPointEntity
 import com.google.android.gms.location.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -44,6 +45,7 @@ class RunTrackingService : Service() {
     private var elapsedBeforePauseMs: Long = 0L
     private var activeSegmentStartElapsedMs: Long = 0L
 
+    @Volatile
     private var runId: Long = -1L
     private var lastLocation: Location? = null
     private var distanceMeters: Double = 0.0
@@ -226,7 +228,14 @@ class RunTrackingService : Service() {
             try {
                 val repo = RepositoryProvider.provideRunRepository(applicationContext)
                 if (runId > 0) {
-                    repo.addLocationPoint(runId, loc.latitude, loc.longitude, nowMs)
+                    repo.addLocationPoint(
+                        RunPointEntity(
+                            runId = runId,
+                            lat = loc.latitude,
+                            lon = loc.longitude,
+                            tsMs = nowMs,
+                        )
+                    )
 
                     // update distance/duration/speed on the run record as well
                     val existing = repo.getRunById(runId)
