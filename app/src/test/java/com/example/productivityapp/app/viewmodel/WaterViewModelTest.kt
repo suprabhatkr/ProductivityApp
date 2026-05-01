@@ -148,6 +148,10 @@ private class FakeWaterRepository(
         return days.getOrPut(date) { MutableStateFlow(WaterDayData(date = date)) }
     }
 
+    override suspend fun getDay(date: String): WaterDayData {
+        return days.getOrPut(date) { MutableStateFlow(WaterDayData(date = date)) }.value
+    }
+
     override suspend fun addEntry(date: String, amountMl: Int): Long {
         addedEntries += date to amountMl
         val id = nextId++

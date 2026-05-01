@@ -28,6 +28,8 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material3.Button
@@ -58,6 +60,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -74,6 +77,8 @@ import com.example.productivityapp.app.data.model.WaterDayData
 import com.example.productivityapp.app.data.model.WaterEntry
 import com.example.productivityapp.app.viewmodel.WaterUiState
 import com.example.productivityapp.app.viewmodel.WaterViewModel
+import com.example.productivityapp.ui.settings.WaterFeatureSettingsDialog
+import com.example.productivityapp.ui.settings.rememberSharedSettingsViewModel
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.coroutineScope
@@ -118,6 +123,7 @@ fun WaterIntakeScreen(
     val keyboard = LocalSoftwareKeyboardController.current
     var selectedQuick by remember { mutableStateOf<Int?>(null) }
     var customText by remember { mutableStateOf("") }
+    var showFeatureSettings by rememberSaveable { mutableStateOf(false) }
     val dateFormatter = DateTimeFormatter.ISO_LOCAL_DATE
     val isDark = isSystemInDarkTheme()
     val backdrop = if (isDark) WaterBackdropDark else WaterBackdropLight
@@ -128,6 +134,8 @@ fun WaterIntakeScreen(
     val tone = if (isDark) WaterToneDark else WaterToneLight
     val chipColor = if (isDark) WaterChipDark else WaterChipLight
     val actionSurface = if (isDark) WaterActionDark else WaterActionLight
+    val settingsViewModel = rememberSharedSettingsViewModel()
+    val settingsUiState by settingsViewModel.uiState.collectAsState()
 
     QuickSelectionClearEffect(selectedQuick) { selectedQuick = null }
 
@@ -155,7 +163,20 @@ fun WaterIntakeScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Text("←", color = MaterialTheme.colorScheme.onSurface, fontSize = 18.sp)
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = MaterialTheme.colorScheme.onSurface,
+                        )
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { showFeatureSettings = true }) {
+                        Icon(
+                            imageVector = Icons.Filled.Settings,
+                            contentDescription = "Open water settings",
+                            tint = MaterialTheme.colorScheme.onSurface,
+                        )
                     }
                 },
                 expandedHeight = 56.dp,
@@ -298,6 +319,19 @@ fun WaterIntakeScreen(
                 )
             }
         }
+    }
+
+    if (showFeatureSettings) {
+        WaterFeatureSettingsDialog(
+            uiState = settingsUiState,
+            onDismiss = { showFeatureSettings = false },
+            onDailyWaterGoalChanged = settingsViewModel::updateDailyWaterGoalMl,
+            onSave = {
+                if (settingsViewModel.saveSettings()) {
+                    showFeatureSettings = false
+                }
+            },
+        )
     }
 }
 

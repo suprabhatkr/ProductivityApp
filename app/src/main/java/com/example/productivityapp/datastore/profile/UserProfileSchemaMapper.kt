@@ -18,6 +18,8 @@ object UserProfileSchemaMapper {
             typicalBedtimeMinutes = proto.typicalBedtimeMinutes.takeIf { it in 0..1439 } ?: 1320,
             typicalWakeTimeMinutes = proto.typicalWakeTimeMinutes.takeIf { it in 0..1439 } ?: 420,
             sleepDetectionBufferMinutes = proto.sleepDetectionBufferMinutes.takeIf { it >= 0 } ?: 30,
+            ageYears = proto.ageYears.takeIf { proto.hasAgeYears() && it in 1..120 },
+            gender = proto.gender.takeIf { proto.hasGender() && it.isNotBlank() },
         )
         return SecureStoredUserProfile(
             profile = profile,
@@ -46,6 +48,8 @@ object UserProfileSchemaMapper {
         record.profile.displayName?.takeIf { it.isNotBlank() }?.let(builder::setDisplayName)
         record.profile.weightKg?.let(builder::setWeightKg)
         record.profile.heightCm?.let(builder::setHeightCm)
+        record.profile.ageYears?.let(builder::setAgeYears)
+        record.profile.gender?.takeIf { it.isNotBlank() }?.let(builder::setGender)
         return builder.build()
     }
 
@@ -71,6 +75,8 @@ object UserProfileSchemaMapper {
                 typicalBedtimeMinutes = 1320,
                 typicalWakeTimeMinutes = 420,
                 sleepDetectionBufferMinutes = 30,
+                ageYears = snapshot.ageYears?.takeIf { it in 1..120 },
+                gender = snapshot.gender?.takeIf { it.isNotBlank() },
             ),
             schemaVersion = SecureStoredUserProfile.CURRENT_SCHEMA_VERSION,
             migrationState = ProfileMigrationState.NONE,

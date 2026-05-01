@@ -43,7 +43,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -77,7 +79,10 @@ import com.example.productivityapp.data.entities.SleepEntity
 import com.example.productivityapp.data.entities.SleepReviewState
 import com.example.productivityapp.data.entities.tags
 import com.example.productivityapp.data.model.UserProfile
+import com.example.productivityapp.service.SleepReminderEvents
 import com.example.productivityapp.service.SleepAlertScheduler
+import com.example.productivityapp.ui.settings.SleepFeatureSettingsDialog
+import com.example.productivityapp.ui.settings.rememberSharedSettingsViewModel
 import com.example.productivityapp.util.SleepActionLogger
 import com.example.productivityapp.viewmodel.SleepDaySummary
 import com.example.productivityapp.viewmodel.SleepViewModel
@@ -125,6 +130,9 @@ fun SleepScreen(onBack: () -> Unit = {}) {
     val canUseExactAlarm = remember(context) {
         SleepAlertScheduler.canScheduleExactAlarms(context.applicationContext)
     }
+    val settingsViewModel = rememberSharedSettingsViewModel()
+    val settingsUiState = settingsViewModel.uiState.collectAsState()
+    var showFeatureSettings by rememberSaveable { mutableStateOf(false) }
     SleepActionLogger.initialize(context.applicationContext)
 
     SleepScreenContent(
@@ -154,11 +162,16 @@ fun SleepScreen(onBack: () -> Unit = {}) {
         },
         onStartNapTimer = {
             if (activeSession.value?.detectionSource == SleepDetectionSource.NAP.storageValue) {
+                val completedNap = activeSession.value?.copy(
+                    endTimestamp = System.currentTimeMillis(),
+                    durationSec = elapsedSeconds.value,
+                )
                 SleepActionLogger.logEvent(
                     "sleep_button_click",
                     mapOf("action" to "stop_nap")
                 )
                 vm.stopSleep()
+                completedNap?.let { SleepReminderEvents.notifyWakeFollowUp(context.applicationContext, it) }
                 SleepAlertScheduler.cancelNapReminder(context.applicationContext)
                 if (SleepAlertScheduler.hasWakeAlarmScheduled(context.applicationContext)) {
                     SleepAlertScheduler.cancelWakeAlarm(context.applicationContext)
@@ -173,6 +186,10 @@ fun SleepScreen(onBack: () -> Unit = {}) {
                     SleepAlertScheduler.cancelWakeAlarm(context.applicationContext)
                 }
                 vm.startNapTimer()
+                SleepReminderEvents.notifyNapStarted(
+                    context = context.applicationContext,
+                    sessionStartTimestamp = System.currentTimeMillis(),
+                )
                 SleepAlertScheduler.scheduleNapReminder(context.applicationContext)
             }
         },
@@ -182,7 +199,12 @@ fun SleepScreen(onBack: () -> Unit = {}) {
         onPauseSleep = vm::pauseSleep,
         onResumeSleep = vm::resumeSleep,
         onStopSleep = {
+            val completedSleep = activeSession.value?.copy(
+                endTimestamp = System.currentTimeMillis(),
+                durationSec = elapsedSeconds.value,
+            )
             vm.stopSleep()
+            completedSleep?.let { SleepReminderEvents.notifyWakeFollowUp(context.applicationContext, it) }
             SleepAlertScheduler.cancelNapReminder(context.applicationContext)
             SleepAlertScheduler.cancelWakeAlarm(context.applicationContext)
         },
@@ -192,8 +214,25 @@ fun SleepScreen(onBack: () -> Unit = {}) {
         onAdjustDetectedReview = vm::adjustDetectedSleepReview,
         onMergeDetectedReview = vm::mergeDetectedSleepReviewWithPrevious,
         onDismissDetectedReview = vm::dismissDetectedSleepReview,
+        onOpenFeatureSettings = { showFeatureSettings = true },
         onBack = onBack,
     )
+
+    if (showFeatureSettings) {
+        SleepFeatureSettingsDialog(
+            uiState = settingsUiState.value,
+            onDismiss = { showFeatureSettings = false },
+            onNightlySleepGoalChanged = settingsViewModel::updateNightlySleepGoalMinutes,
+            onTypicalBedtimeChanged = settingsViewModel::updateTypicalBedtime,
+            onTypicalWakeTimeChanged = settingsViewModel::updateTypicalWakeTime,
+            onSleepDetectionBufferChanged = settingsViewModel::updateSleepDetectionBufferMinutes,
+            onSave = {
+                if (settingsViewModel.saveSettings()) {
+                    showFeatureSettings = false
+                }
+            },
+        )
+    }
 }
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
@@ -223,6 +262,7 @@ fun SleepScreenContent(
     onAdjustDetectedReview: (Int, Int?, String) -> Unit,
     onMergeDetectedReview: () -> Unit,
     onDismissDetectedReview: () -> Unit,
+    onOpenFeatureSettings: () -> Unit = {},
     onBack: () -> Unit = {},
 ) {
     var quality by rememberSaveable(pendingReviewSession?.id) { mutableStateOf(4) }
@@ -367,7 +407,20 @@ fun SleepScreenContent(
                 title = { Text("Sleep", fontWeight = FontWeight.SemiBold, fontSize = 18.sp) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Text("←", color = MaterialTheme.colorScheme.onSurface, fontSize = 18.sp)
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = MaterialTheme.colorScheme.onSurface,
+                        )
+                    }
+                },
+                actions = {
+                    IconButton(onClick = onOpenFeatureSettings) {
+                        Icon(
+                            imageVector = Icons.Filled.Settings,
+                            contentDescription = "Open sleep settings",
+                            tint = MaterialTheme.colorScheme.onSurface,
+                        )
                     }
                 },
                 expandedHeight = 48.dp,

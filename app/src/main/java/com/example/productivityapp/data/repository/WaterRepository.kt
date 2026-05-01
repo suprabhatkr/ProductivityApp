@@ -5,6 +5,7 @@ import kotlinx.coroutines.flow.Flow
 
 interface WaterRepository {
     fun observeDay(date: String): Flow<WaterDayData>
+    suspend fun getDay(date: String): WaterDayData
     suspend fun addEntry(date: String, amountMl: Int): Long
     suspend fun removeEntry(date: String, id: Long)
 }

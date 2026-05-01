@@ -22,9 +22,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
@@ -60,6 +64,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.productivityapp.data.RepositoryProvider
 import com.example.productivityapp.data.entities.RunEntity
 import com.example.productivityapp.service.RunTrackingService
+import com.example.productivityapp.ui.settings.RunFeatureSettingsDialog
+import com.example.productivityapp.ui.settings.rememberSharedSettingsViewModel
 import com.example.productivityapp.viewmodel.RunViewModel
 import com.example.productivityapp.viewmodel.RunViewModelFactory
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
@@ -117,6 +123,9 @@ fun RunScreen(
     val runningState = vm.uiRunning.collectAsState()
     var running by rememberSaveable { mutableStateOf(runningState.value) }
     LaunchedEffect(runningState.value) { running = runningState.value }
+    val settingsViewModel = rememberSharedSettingsViewModel()
+    val settingsUiState = settingsViewModel.uiState.collectAsState()
+    var showFeatureSettings by rememberSaveable { mutableStateOf(false) }
 
     val hasPausedRun = hasPausedRun(latest, running)
     val permissionUiState = remember(
@@ -212,8 +221,22 @@ fun RunScreen(
             }
         },
         onOpenRunDetails = onOpenRunDetails,
+        onOpenFeatureSettings = { showFeatureSettings = true },
         onBack = onBack,
     )
+
+    if (showFeatureSettings) {
+        RunFeatureSettingsDialog(
+            uiState = settingsUiState.value,
+            onDismiss = { showFeatureSettings = false },
+            onPreferredUnitsChanged = settingsViewModel::updatePreferredUnits,
+            onSave = {
+                if (settingsViewModel.saveSettings()) {
+                    showFeatureSettings = false
+                }
+            },
+        )
+    }
 }
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
@@ -228,6 +251,7 @@ internal fun RunScreenContent(
     onResumeRun: () -> Unit,
     onPermissionCardAction: (RunPermissionCardAction) -> Unit,
     onOpenRunDetails: (Long) -> Unit = {},
+    onOpenFeatureSettings: () -> Unit = {},
     onBack: () -> Unit = {},
 ) {
     val snapshot = remember(runs, isTracking) {
@@ -277,7 +301,20 @@ internal fun RunScreenContent(
                 title = { Text("Run", fontWeight = FontWeight.SemiBold, fontSize = 18.sp) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Text("←", color = MaterialTheme.colorScheme.onSurface, fontSize = 18.sp)
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = MaterialTheme.colorScheme.onSurface,
+                        )
+                    }
+                },
+                actions = {
+                    IconButton(onClick = onOpenFeatureSettings) {
+                        Icon(
+                            imageVector = Icons.Filled.Settings,
+                            contentDescription = "Open run settings",
+                            tint = MaterialTheme.colorScheme.onSurface,
+                        )
                     }
                 },
                 expandedHeight = 48.dp,

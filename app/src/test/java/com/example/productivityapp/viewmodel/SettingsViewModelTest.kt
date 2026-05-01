@@ -1,6 +1,8 @@
 package com.example.productivityapp.viewmodel
 
+import com.example.productivityapp.data.model.AppThemePreference
 import com.example.productivityapp.data.model.UserProfile
+import com.example.productivityapp.data.repository.AppThemeRepository
 import com.example.productivityapp.data.repository.UserProfileRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -34,8 +36,8 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun init_loadsProfileIntoEditableState() = runTest(dispatcher) {
-        val repo = FakeUserProfileRepository(
+    fun init_loadsProfileAndThemeIntoSectionState() = runTest(dispatcher) {
+        val profileRepository = FakeUserProfileRepository(
             UserProfile(
                 displayName = "Suprabhat",
                 weightKg = 72.5,
@@ -48,95 +50,155 @@ class SettingsViewModelTest {
                 typicalBedtimeMinutes = 1380,
                 typicalWakeTimeMinutes = 420,
                 sleepDetectionBufferMinutes = 45,
+                ageYears = 31,
+                gender = "Male",
             )
         )
+        val themeRepository = FakeAppThemeRepository(AppThemePreference.DARK)
 
-        val vm = SettingsViewModel(repo)
+        val viewModel = SettingsViewModel(profileRepository, themeRepository)
         runCurrent()
 
-        val state = vm.uiState.value
+        val state = viewModel.uiState.value
         assertFalse(state.isLoading)
-        assertEquals("Suprabhat", state.displayName)
-        assertEquals("72.5", state.weightKg)
-        assertEquals("178", state.heightCm)
-        assertEquals("0.82", state.strideLengthMeters)
-        assertEquals("imperial", state.preferredUnits)
-        assertEquals("12000", state.dailyStepGoal)
-        assertEquals("2600", state.dailyWaterGoalMl)
-        assertEquals("450", state.nightlySleepGoalMinutes)
-        assertEquals("23:00", state.typicalBedtime)
-        assertEquals("07:00", state.typicalWakeTime)
-        assertEquals("45", state.sleepDetectionBufferMinutes)
+        assertEquals("Suprabhat", state.profile.displayName)
+        assertEquals("31", state.profile.ageYears)
+        assertEquals("Male", state.profile.gender)
+        assertEquals("72.5", state.profile.weightKg)
+        assertEquals("178", state.profile.heightCm)
+        assertEquals("0.82", state.steps.strideLengthMeters)
+        assertEquals("imperial", state.run.preferredUnits)
+        assertEquals("12000", state.steps.dailyStepGoal)
+        assertEquals("2600", state.water.dailyWaterGoalMl)
+        assertEquals("450", state.sleep.nightlySleepGoalMinutes)
+        assertEquals("23:00", state.sleep.typicalBedtime)
+        assertEquals("07:00", state.sleep.typicalWakeTime)
+        assertEquals("45", state.sleep.sleepDetectionBufferMinutes)
+        assertEquals(AppThemePreference.DARK, state.appearance.themePreference)
     }
 
     @Test
-    fun saveProfile_updatesRepositoryAndClearsDirtyFlag() = runTest(dispatcher) {
-        val repo = FakeUserProfileRepository(UserProfile())
-        val vm = SettingsViewModel(repo)
+    fun saveSettings_updatesRepositoriesAndClearsDirtyFlag() = runTest(dispatcher) {
+        val profileRepository = FakeUserProfileRepository(UserProfile())
+        val themeRepository = FakeAppThemeRepository(AppThemePreference.SYSTEM)
+        val viewModel = SettingsViewModel(profileRepository, themeRepository)
         runCurrent()
 
-        vm.updateDisplayName("Runner")
-        vm.updateWeightKg("70.0")
-        vm.updateHeightCm("175")
-        vm.updateStrideLengthMeters("0.81")
-        vm.updatePreferredUnits("metric")
-        vm.updateDailyStepGoal("9000")
-        vm.updateDailyWaterGoalMl("2300")
-        vm.updateNightlySleepGoalMinutes("420")
-        vm.updateTypicalBedtime("22:15")
-        vm.updateTypicalWakeTime("06:45")
-        vm.updateSleepDetectionBufferMinutes("25")
-        vm.saveProfile()
+        viewModel.updateDisplayName("Runner")
+        viewModel.updateAgeYears("29")
+        viewModel.updateGender("Female")
+        viewModel.updateWeightKg("70.0")
+        viewModel.updateHeightCm("175")
+        viewModel.updateStrideLengthMeters("0.81")
+        viewModel.updatePreferredUnits("imperial")
+        viewModel.updateThemePreference(AppThemePreference.LIGHT)
+        viewModel.updateDailyStepGoal("9000")
+        viewModel.updateDailyWaterGoalMl("2300")
+        viewModel.updateNightlySleepGoalMinutes("420")
+        viewModel.updateTypicalBedtime("22:15")
+        viewModel.updateTypicalWakeTime("06:45")
+        viewModel.updateSleepDetectionBufferMinutes("25")
+        viewModel.saveSettings()
         runCurrent()
 
-        assertEquals("Runner", repo.profile.value.displayName)
-        assertEquals(70.0, repo.profile.value.weightKg)
-        assertEquals(175, repo.profile.value.heightCm)
-        assertEquals(0.81, repo.profile.value.strideLengthMeters, 0.0)
-        assertEquals("metric", repo.profile.value.preferredUnits)
-        assertEquals(9000, repo.profile.value.dailyStepGoal)
-        assertEquals(2300, repo.profile.value.dailyWaterGoalMl)
-        assertEquals(420, repo.profile.value.nightlySleepGoalMinutes)
-        assertEquals(22 * 60 + 15, repo.profile.value.typicalBedtimeMinutes)
-        assertEquals(6 * 60 + 45, repo.profile.value.typicalWakeTimeMinutes)
-        assertEquals(25, repo.profile.value.sleepDetectionBufferMinutes)
-        assertFalse(vm.uiState.value.hasUnsavedChanges)
-        assertEquals("Settings saved", vm.uiState.value.message)
+        assertEquals("Runner", profileRepository.profile.value.displayName)
+        assertEquals(29, profileRepository.profile.value.ageYears)
+        assertEquals("Female", profileRepository.profile.value.gender)
+        assertEquals(70.0, profileRepository.profile.value.weightKg)
+        assertEquals(175, profileRepository.profile.value.heightCm)
+        assertEquals(0.81, profileRepository.profile.value.strideLengthMeters, 0.0)
+        assertEquals("imperial", profileRepository.profile.value.preferredUnits)
+        assertEquals(9000, profileRepository.profile.value.dailyStepGoal)
+        assertEquals(2300, profileRepository.profile.value.dailyWaterGoalMl)
+        assertEquals(420, profileRepository.profile.value.nightlySleepGoalMinutes)
+        assertEquals(22 * 60 + 15, profileRepository.profile.value.typicalBedtimeMinutes)
+        assertEquals(6 * 60 + 45, profileRepository.profile.value.typicalWakeTimeMinutes)
+        assertEquals(25, profileRepository.profile.value.sleepDetectionBufferMinutes)
+        assertEquals(AppThemePreference.LIGHT, themeRepository.preference.value)
+        assertFalse(viewModel.uiState.value.hasUnsavedChanges)
+        assertEquals("Settings saved", viewModel.uiState.value.message)
     }
 
     @Test
-    fun saveProfile_rejectsInvalidNightlySleepGoal() = runTest(dispatcher) {
-        val repo = FakeUserProfileRepository(UserProfile())
-        val vm = SettingsViewModel(repo)
+    fun saveSettings_blankFeatureFieldsRestoreDefaults() = runTest(dispatcher) {
+        val profileRepository = FakeUserProfileRepository(UserProfile())
+        val themeRepository = FakeAppThemeRepository(AppThemePreference.SYSTEM)
+        val viewModel = SettingsViewModel(profileRepository, themeRepository)
         runCurrent()
 
-        vm.updateNightlySleepGoalMinutes("90")
-        vm.saveProfile()
+        viewModel.updateDisplayName("Alex")
+        viewModel.updateAgeYears("30")
+        viewModel.updateDailyStepGoal("")
+        viewModel.updateDailyWaterGoalMl("")
+        viewModel.updateStrideLengthMeters("")
+        viewModel.updateNightlySleepGoalMinutes("")
+        viewModel.updateTypicalBedtime("")
+        viewModel.updateTypicalWakeTime("")
+        viewModel.updateSleepDetectionBufferMinutes("")
+        viewModel.saveSettings()
         runCurrent()
 
-        assertEquals(UserProfile(), repo.profile.value)
-        assertEquals("Enter a valid nightly sleep goal in minutes", vm.uiState.value.message)
-        assertTrue(vm.uiState.value.hasUnsavedChanges)
+        assertEquals(
+            UserProfile(displayName = "Alex", ageYears = 30),
+            profileRepository.profile.value,
+        )
     }
 
     @Test
-    fun saveProfile_rejectsInvalidSleepWindowTime() = runTest(dispatcher) {
-        val repo = FakeUserProfileRepository(UserProfile())
-        val vm = SettingsViewModel(repo)
+    fun saveSettings_requiresNameAndAge() = runTest(dispatcher) {
+        val profileRepository = FakeUserProfileRepository(UserProfile())
+        val themeRepository = FakeAppThemeRepository(AppThemePreference.SYSTEM)
+        val viewModel = SettingsViewModel(profileRepository, themeRepository)
         runCurrent()
 
-        vm.updateTypicalBedtime("25:00")
-        vm.saveProfile()
+        viewModel.saveSettings()
         runCurrent()
 
-        assertEquals(UserProfile(), repo.profile.value)
-        assertEquals("Enter bedtime as HH:mm", vm.uiState.value.message)
-        assertTrue(vm.uiState.value.hasUnsavedChanges)
+        assertEquals(UserProfile(), profileRepository.profile.value)
+        assertEquals("Name and age are mandatory", viewModel.uiState.value.message)
+        assertEquals("Name is mandatory", viewModel.uiState.value.profile.displayNameError)
+        assertEquals("Age is mandatory", viewModel.uiState.value.profile.ageYearsError)
     }
 
     @Test
-    fun resetProfile_clearsOptionalFieldsAndRestoresDefaults() = runTest(dispatcher) {
-        val repo = FakeUserProfileRepository(
+    fun saveSettings_rejectsInvalidAge() = runTest(dispatcher) {
+        val profileRepository = FakeUserProfileRepository(UserProfile())
+        val themeRepository = FakeAppThemeRepository(AppThemePreference.SYSTEM)
+        val viewModel = SettingsViewModel(profileRepository, themeRepository)
+        runCurrent()
+
+        viewModel.updateDisplayName("Alex")
+        viewModel.updateAgeYears("999")
+        viewModel.saveSettings()
+        runCurrent()
+
+        assertEquals(UserProfile(), profileRepository.profile.value)
+        assertEquals("Enter a valid age", viewModel.uiState.value.message)
+        assertEquals("Enter a valid age", viewModel.uiState.value.profile.ageYearsError)
+        assertTrue(viewModel.uiState.value.hasUnsavedChanges)
+    }
+
+    @Test
+    fun saveSettings_rejectsInvalidSleepWindowTime() = runTest(dispatcher) {
+        val profileRepository = FakeUserProfileRepository(UserProfile())
+        val themeRepository = FakeAppThemeRepository(AppThemePreference.SYSTEM)
+        val viewModel = SettingsViewModel(profileRepository, themeRepository)
+        runCurrent()
+
+        viewModel.updateDisplayName("Alex")
+        viewModel.updateAgeYears("30")
+        viewModel.updateTypicalBedtime("25:00")
+        viewModel.saveSettings()
+        runCurrent()
+
+        assertEquals(UserProfile(), profileRepository.profile.value)
+        assertEquals("Enter bedtime as HH:mm", viewModel.uiState.value.message)
+        assertTrue(viewModel.uiState.value.hasUnsavedChanges)
+    }
+
+    @Test
+    fun resetSettings_clearsOptionalFieldsAndRestoresDefaults() = runTest(dispatcher) {
+        val profileRepository = FakeUserProfileRepository(
             UserProfile(
                 displayName = "Runner",
                 weightKg = 80.0,
@@ -149,18 +211,23 @@ class SettingsViewModelTest {
                 typicalBedtimeMinutes = 1370,
                 typicalWakeTimeMinutes = 410,
                 sleepDetectionBufferMinutes = 55,
+                ageYears = 34,
+                gender = "Non-binary",
             )
         )
-        val vm = SettingsViewModel(repo)
+        val themeRepository = FakeAppThemeRepository(AppThemePreference.DARK)
+        val viewModel = SettingsViewModel(profileRepository, themeRepository)
         runCurrent()
 
-        vm.resetProfile()
+        viewModel.resetSettings()
         runCurrent()
 
-        val saved = repo.profile.value
+        val saved = profileRepository.profile.value
         assertNull(saved.displayName)
         assertNull(saved.weightKg)
         assertNull(saved.heightCm)
+        assertNull(saved.ageYears)
+        assertNull(saved.gender)
         assertEquals(0.78, saved.strideLengthMeters, 0.0)
         assertEquals("metric", saved.preferredUnits)
         assertEquals(10000, saved.dailyStepGoal)
@@ -169,7 +236,8 @@ class SettingsViewModelTest {
         assertEquals(1320, saved.typicalBedtimeMinutes)
         assertEquals(420, saved.typicalWakeTimeMinutes)
         assertEquals(30, saved.sleepDetectionBufferMinutes)
-        assertTrue(vm.uiState.value.message?.contains("reset", ignoreCase = true) == true)
+        assertEquals(AppThemePreference.SYSTEM, themeRepository.preference.value)
+        assertTrue(viewModel.uiState.value.message?.contains("reset", ignoreCase = true) == true)
     }
 }
 
@@ -182,5 +250,15 @@ private class FakeUserProfileRepository(initial: UserProfile) : UserProfileRepos
 
     override suspend fun updateUserProfile(profile: UserProfile) {
         this.profile.value = profile
+    }
+}
+
+private class FakeAppThemeRepository(initial: AppThemePreference) : AppThemeRepository {
+    val preference = MutableStateFlow(initial)
+
+    override fun observeThemePreference(): Flow<AppThemePreference> = preference
+
+    override suspend fun updateThemePreference(preference: AppThemePreference) {
+        this.preference.value = preference
     }
 }

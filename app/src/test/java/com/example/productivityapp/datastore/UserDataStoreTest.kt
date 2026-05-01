@@ -1,6 +1,7 @@
 package com.example.productivityapp.datastore
 
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import com.example.productivityapp.data.model.AppThemePreference
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -67,9 +68,12 @@ class UserDataStoreTest {
             typicalBedtimeMinutes = 1375,
             typicalWakeTimeMinutes = 415,
             sleepDetectionBufferMinutes = 40,
+            ageYears = 30,
+            gender = "Female",
         )
 
         uds.updateUserProfile(profile)
+        uds.updateThemePreference(AppThemePreference.DARK)
 
         val read = uds.getUserProfileBlocking()
         assertEquals("Test", read.displayName)
@@ -83,8 +87,10 @@ class UserDataStoreTest {
         assertEquals(1375, read.typicalBedtimeMinutes)
         assertEquals(415, read.typicalWakeTimeMinutes)
         assertEquals(40, read.sleepDetectionBufferMinutes)
+        assertEquals(30, read.ageYears)
+        assertEquals("Female", read.gender)
+        assertEquals(AppThemePreference.DARK, uds.observeThemePreference().first())
 
         dsJob.cancel()
     }
 }
-

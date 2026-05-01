@@ -52,7 +52,8 @@ class SleepAlarmReceiver : BroadcastReceiver() {
                     else -> SleepReviewState.NEEDS_REVIEW.storageValue
                 },
             )
-            repo.stopSleep(confirmed)
+            val stopped = repo.stopSleep(confirmed)
+            SleepReminderEvents.notifyWakeFollowUp(context, stopped)
             cancelNapReminderAction(context)
             cancelWakeAlarmAction(context)
         }

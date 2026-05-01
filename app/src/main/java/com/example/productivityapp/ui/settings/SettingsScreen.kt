@@ -1,34 +1,73 @@
 package com.example.productivityapp.ui.settings
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.DirectionsRun
+import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
+import androidx.compose.material.icons.filled.Hotel
+import androidx.compose.material.icons.filled.PersonOutline
+import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
-import androidx.compose.material3.TextButton
+import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.example.productivityapp.viewmodel.SettingsUiState
 import com.example.productivityapp.viewmodel.SettingsViewModel
+
+private val SettingsBackdropLight = Color(0xFFF8F4F7)
+private val SettingsBackdropDark = Color(0xFF110E13)
+private val SettingsSurfaceLight = Color(0xFFF0EAF1)
+private val SettingsSurfaceDark = Color(0xFF1B1620)
+private val SettingsSurfaceAltLight = Color(0xFFFFFFFF)
+private val SettingsSurfaceAltDark = Color(0xFF221C29)
+
+private val ProfileToneLight = SettingsSectionTone(Color(0xFFEDE4F0), Color(0xFFF8EEFA), Color(0xFF8660A7))
+private val ProfileToneDark = SettingsSectionTone(Color(0xFF271F31), Color(0xFF342942), Color(0xFFD0B2F1))
+private val AppearanceToneLight = SettingsSectionTone(Color(0xFFF5E7E2), Color(0xFFFFF1EB), Color(0xFFC26C49))
+private val AppearanceToneDark = SettingsSectionTone(Color(0xFF30211C), Color(0xFF422F29), Color(0xFFFFC4AA))
+private val StepsToneLight = SettingsSectionTone(Color(0xFFF8EED3), Color(0xFFFFF6E3), Color(0xFFB98612))
+private val StepsToneDark = SettingsSectionTone(Color(0xFF312712), Color(0xFF45381A), Color(0xFFF0C867))
+private val RunToneLight = SettingsSectionTone(Color(0xFFF6E4DB), Color(0xFFFFF0EA), Color(0xFFC56639))
+private val RunToneDark = SettingsSectionTone(Color(0xFF302018), Color(0xFF442C22), Color(0xFFFFB692))
+private val WaterToneLight = SettingsSectionTone(Color(0xFFE6F1FB), Color(0xFFF0F7FF), Color(0xFF2A6CC1))
+private val WaterToneDark = SettingsSectionTone(Color(0xFF15263A), Color(0xFF1D3450), Color(0xFF91C8FF))
+private val SleepToneLight = SettingsSectionTone(Color(0xFFE6F2E8), Color(0xFFF1F8F2), Color(0xFF2F8F44))
+private val SleepToneDark = SettingsSectionTone(Color(0xFF17251B), Color(0xFF223326), Color(0xFFA8E1B1))
+private val PrivacyToneLight = SettingsSectionTone(Color(0xFFEEEAF1), Color(0xFFF6F3F8), Color(0xFF7A6A8A))
+private val PrivacyToneDark = SettingsSectionTone(Color(0xFF231E29), Color(0xFF2F2837), Color(0xFFC4B8D3))
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -38,224 +77,276 @@ fun SettingsScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
+    SettingsScreenContent(
+        uiState = uiState,
+        onBack = onBack,
+        onDisplayNameChanged = viewModel::updateDisplayName,
+        onAgeChanged = viewModel::updateAgeYears,
+        onGenderChanged = viewModel::updateGender,
+        onHeightChanged = viewModel::updateHeightCm,
+        onWeightChanged = viewModel::updateWeightKg,
+        onDailyStepGoalChanged = viewModel::updateDailyStepGoal,
+        onStrideLengthChanged = viewModel::updateStrideLengthMeters,
+        onPreferredUnitsChanged = viewModel::updatePreferredUnits,
+        onDailyWaterGoalChanged = viewModel::updateDailyWaterGoalMl,
+        onNightlySleepGoalChanged = viewModel::updateNightlySleepGoalMinutes,
+        onTypicalBedtimeChanged = viewModel::updateTypicalBedtime,
+        onTypicalWakeTimeChanged = viewModel::updateTypicalWakeTime,
+        onSleepDetectionBufferChanged = viewModel::updateSleepDetectionBufferMinutes,
+        onReset = viewModel::resetSettings,
+        onSave = { viewModel.saveSettings() },
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SettingsScreenContent(
+    uiState: SettingsUiState,
+    onBack: () -> Unit,
+    onDisplayNameChanged: (String) -> Unit,
+    onAgeChanged: (String) -> Unit,
+    onGenderChanged: (String?) -> Unit,
+    onHeightChanged: (String) -> Unit,
+    onWeightChanged: (String) -> Unit,
+    onDailyStepGoalChanged: (String) -> Unit,
+    onStrideLengthChanged: (String) -> Unit,
+    onPreferredUnitsChanged: (String) -> Unit,
+    onDailyWaterGoalChanged: (String) -> Unit,
+    onNightlySleepGoalChanged: (String) -> Unit,
+    onTypicalBedtimeChanged: (String) -> Unit,
+    onTypicalWakeTimeChanged: (String) -> Unit,
+    onSleepDetectionBufferChanged: (String) -> Unit,
+    onReset: () -> Unit,
+    onSave: () -> Unit,
+) {
+    val isDark = isSystemInDarkTheme()
+    val backdrop = if (isDark) SettingsBackdropDark else SettingsBackdropLight
+    val surface = if (isDark) SettingsSurfaceDark else SettingsSurfaceLight
+    val surfaceAlt = if (isDark) SettingsSurfaceAltDark else SettingsSurfaceAltLight
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Settings") },
+                title = {
+                    Text(
+                        text = "Settings",
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 18.sp,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                },
                 navigationIcon = {
-                    TextButton(onClick = onBack) {
-                        Text("Back")
+                    IconButton(
+                        onClick = onBack,
+                        modifier = Modifier.semantics { contentDescription = "Navigate back" },
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurface,
+                        )
                     }
                 },
+                expandedHeight = 56.dp,
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                )
+                    containerColor = surface,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface,
+                ),
             )
-        }
+        },
+        containerColor = backdrop,
     ) { padding ->
-        Surface(modifier = Modifier.fillMaxSize()) {
-            if (uiState.isLoading) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding),
-                    verticalArrangement = Arrangement.Center,
+        if (uiState.isLoading) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .background(backdrop),
+                contentAlignment = Alignment.Center,
+            ) {
+                Surface(
+                    color = surfaceAlt,
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(28.dp),
                 ) {
-                    CircularProgressIndicator(modifier = Modifier.padding(horizontal = 16.dp))
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        text = "Loading your on-device profile…",
-                        modifier = Modifier.padding(horizontal = 16.dp),
-                        style = MaterialTheme.typography.bodyMedium,
+                    Row(
+                        modifier = Modifier.padding(horizontal = 18.dp, vertical = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        CircularProgressIndicator(strokeWidth = 3.dp)
+                        Text(
+                            text = "Loading your settings…",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                    }
+                }
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .background(backdrop),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                item {
+                    SettingsHeroCard(
+                        uiState = uiState,
+                        surface = surfaceAlt,
                     )
                 }
-            } else {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding)
-                        .verticalScroll(rememberScrollState())
-                        .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                ) {
-                    uiState.message?.let { message ->
-                        Card(modifier = Modifier.fillMaxWidth()) {
+                uiState.message?.let { message ->
+                    item {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = surfaceAlt),
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(22.dp),
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
                             Text(
                                 text = message,
-                                modifier = Modifier.padding(16.dp),
-                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
                                 color = MaterialTheme.colorScheme.primary,
-                            )
-                        }
-                    }
-
-                    Card(modifier = Modifier.fillMaxWidth()) {
-                        Column(
-                            modifier = Modifier.padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp),
-                        ) {
-                            Text("Profile", style = MaterialTheme.typography.titleMedium)
-                            Text(
-                                "These values stay on your device and are used for health feature personalization.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                            OutlinedTextField(
-                                value = uiState.displayName,
-                                onValueChange = viewModel::updateDisplayName,
-                                modifier = Modifier.fillMaxWidth(),
-                                label = { Text("Display name") },
-                                singleLine = true,
-                            )
-                            OutlinedTextField(
-                                value = uiState.weightKg,
-                                onValueChange = viewModel::updateWeightKg,
-                                modifier = Modifier.fillMaxWidth(),
-                                label = { Text("Weight (kg)") },
-                                singleLine = true,
-                            )
-                            OutlinedTextField(
-                                value = uiState.heightCm,
-                                onValueChange = viewModel::updateHeightCm,
-                                modifier = Modifier.fillMaxWidth(),
-                                label = { Text("Height (cm)") },
-                                singleLine = true,
-                            )
-                            OutlinedTextField(
-                                value = uiState.strideLengthMeters,
-                                onValueChange = viewModel::updateStrideLengthMeters,
-                                modifier = Modifier.fillMaxWidth(),
-                                label = { Text("Stride length (meters)") },
-                                supportingText = { Text("Used by step and run distance estimates.") },
-                                singleLine = true,
-                            )
-                        }
-                    }
-
-                    Card(modifier = Modifier.fillMaxWidth()) {
-                        Column(
-                            modifier = Modifier.padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp),
-                        ) {
-                            Text("Sleep preferences", style = MaterialTheme.typography.titleMedium)
-                            Text(
-                                "These values help the upcoming sleep detector learn your usual schedule while keeping the feature fully on-device.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                            OutlinedTextField(
-                                value = uiState.nightlySleepGoalMinutes,
-                                onValueChange = viewModel::updateNightlySleepGoalMinutes,
-                                modifier = Modifier.fillMaxWidth(),
-                                label = { Text("Nightly sleep goal (minutes)") },
-                                supportingText = { Text("Typical range: 180 to 720 minutes") },
-                                singleLine = true,
-                            )
-                            OutlinedTextField(
-                                value = uiState.typicalBedtime,
-                                onValueChange = viewModel::updateTypicalBedtime,
-                                modifier = Modifier.fillMaxWidth(),
-                                label = { Text("Typical bedtime (HH:mm)") },
-                                supportingText = { Text("Example: 22:30") },
-                                singleLine = true,
-                            )
-                            OutlinedTextField(
-                                value = uiState.typicalWakeTime,
-                                onValueChange = viewModel::updateTypicalWakeTime,
-                                modifier = Modifier.fillMaxWidth(),
-                                label = { Text("Typical wake time (HH:mm)") },
-                                supportingText = { Text("Example: 07:00") },
-                                singleLine = true,
-                            )
-                            OutlinedTextField(
-                                value = uiState.sleepDetectionBufferMinutes,
-                                onValueChange = viewModel::updateSleepDetectionBufferMinutes,
-                                modifier = Modifier.fillMaxWidth(),
-                                label = { Text("Sleep detection buffer (minutes)") },
-                                supportingText = { Text("Used to soften noisy inactivity signals") },
-                                singleLine = true,
-                            )
-                        }
-                    }
-
-                    Card(modifier = Modifier.fillMaxWidth()) {
-                        Column(
-                            modifier = Modifier.padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp),
-                        ) {
-                            Text("Units & daily goals", style = MaterialTheme.typography.titleMedium)
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Button(
-                                    onClick = { viewModel.updatePreferredUnits("metric") },
-                                    enabled = uiState.preferredUnits != "metric",
-                                    modifier = Modifier.weight(1f),
-                                ) {
-                                    Text("Metric")
-                                }
-                                OutlinedButton(
-                                    onClick = { viewModel.updatePreferredUnits("imperial") },
-                                    enabled = uiState.preferredUnits != "imperial",
-                                    modifier = Modifier.weight(1f),
-                                ) {
-                                    Text("Imperial")
-                                }
-                            }
-                            OutlinedTextField(
-                                value = uiState.dailyStepGoal,
-                                onValueChange = viewModel::updateDailyStepGoal,
-                                modifier = Modifier.fillMaxWidth(),
-                                label = { Text("Daily step goal") },
-                                singleLine = true,
-                            )
-                            OutlinedTextField(
-                                value = uiState.dailyWaterGoalMl,
-                                onValueChange = viewModel::updateDailyWaterGoalMl,
-                                modifier = Modifier.fillMaxWidth(),
-                                label = { Text("Daily water goal (ml)") },
-                                singleLine = true,
-                            )
-                        }
-                    }
-
-                    Card(modifier = Modifier.fillMaxWidth()) {
-                        Column(
-                            modifier = Modifier.padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(10.dp),
-                        ) {
-                            Text("Privacy & storage", style = MaterialTheme.typography.titleMedium)
-                            Text(
-                                "Sensitive profile values are stored with encrypted shared preferences. Day-by-day counters and preferences are kept in local app storage on this device.",
                                 style = MaterialTheme.typography.bodyMedium,
                             )
-                            Text(
-                                "Use Reset profile if you want to clear your saved name, height, weight, and restore default goals.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
                         }
                     }
-
+                }
+                item {
+                    ProfileSettingsSection(
+                        state = uiState.profile,
+                        tone = if (isDark) ProfileToneDark else ProfileToneLight,
+                        icon = Icons.Filled.PersonOutline,
+                        onDisplayNameChanged = onDisplayNameChanged,
+                        onAgeChanged = onAgeChanged,
+                        onGenderChanged = onGenderChanged,
+                        onHeightChanged = onHeightChanged,
+                        onWeightChanged = onWeightChanged,
+                    )
+                }
+                item {
+                    StepsSettingsSection(
+                        state = uiState.steps,
+                        tone = if (isDark) StepsToneDark else StepsToneLight,
+                        icon = Icons.AutoMirrored.Filled.DirectionsWalk,
+                        onDailyStepGoalChanged = onDailyStepGoalChanged,
+                        onStrideLengthChanged = onStrideLengthChanged,
+                    )
+                }
+                item {
+                    RunSettingsSection(
+                        state = uiState.run,
+                        tone = if (isDark) RunToneDark else RunToneLight,
+                        icon = Icons.AutoMirrored.Filled.DirectionsRun,
+                        onPreferredUnitsChanged = onPreferredUnitsChanged,
+                    )
+                }
+                item {
+                    WaterSettingsSection(
+                        state = uiState.water,
+                        tone = if (isDark) WaterToneDark else WaterToneLight,
+                        icon = Icons.Filled.WaterDrop,
+                        onDailyWaterGoalChanged = onDailyWaterGoalChanged,
+                    )
+                }
+                item {
+                    SleepSettingsSection(
+                        state = uiState.sleep,
+                        tone = if (isDark) SleepToneDark else SleepToneLight,
+                        icon = Icons.Filled.Hotel,
+                        onNightlySleepGoalChanged = onNightlySleepGoalChanged,
+                        onTypicalBedtimeChanged = onTypicalBedtimeChanged,
+                        onTypicalWakeTimeChanged = onTypicalWakeTimeChanged,
+                        onSleepDetectionBufferChanged = onSleepDetectionBufferChanged,
+                    )
+                }
+                item {
+                    PrivacySettingsSection(
+                        tone = if (isDark) PrivacyToneDark else PrivacyToneLight,
+                        icon = Icons.Filled.Security,
+                    )
+                }
+                item {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         OutlinedButton(
-                            onClick = viewModel::resetProfile,
+                            onClick = onReset,
                             enabled = !uiState.isSaving,
                             modifier = Modifier.weight(1f),
                         ) {
-                            Text("Reset profile")
+                            Text("Reset")
                         }
                         Button(
-                            onClick = viewModel::saveProfile,
+                            onClick = onSave,
                             enabled = uiState.hasUnsavedChanges && !uiState.isSaving,
                             modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                         ) {
-                            Text(if (uiState.isSaving) "Saving…" else "Save settings")
+                            Text(if (uiState.isSaving) "Saving…" else "Save")
                         }
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun SettingsHeroCard(
+    uiState: SettingsUiState,
+    surface: Color,
+) {
+    val filledProfileFields = listOf(
+        uiState.profile.displayName.isNotBlank(),
+        uiState.profile.ageYears.isNotBlank(),
+        !uiState.profile.gender.isNullOrBlank(),
+        uiState.profile.heightCm.isNotBlank(),
+        uiState.profile.weightKg.isNotBlank(),
+    ).count { it }
+    val unitsLabel = if (uiState.run.preferredUnits == "imperial") "Imperial units" else "Metric units"
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = surface),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(28.dp),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        androidx.compose.foundation.layout.Column(
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(
+                text = "Keep your profile and goals aligned across the app.",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                text = "Everything here stays local to your device and is reused by the home, run, sleep, step, and water experiences.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SettingsHeroChip(unitsLabel)
+                SettingsHeroChip("Profile $filledProfileFields/5")
+            }
+        }
+    }
+}
+
+@Composable
+private fun SettingsHeroChip(text: String) {
+    Surface(
+        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(999.dp),
+    ) {
+        Text(
+            text = text,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
     }
 }

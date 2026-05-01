@@ -13,6 +13,8 @@ data class LegacyProfileSnapshot(
     val preferredUnits: String?,
     val dailyStepGoal: Int?,
     val dailyWaterGoalMl: Int?,
+    val ageYears: Int? = null,
+    val gender: String? = null,
 )
 
 interface LegacyProfileReader {
@@ -31,6 +33,8 @@ class SharedPreferencesLegacyProfileReader(
             preferredUnits = sharedPreferences.getString("profile_units", null),
             dailyStepGoal = sharedPreferences.getInt("profile_step_goal", -1).takeIf { it > 0 },
             dailyWaterGoalMl = sharedPreferences.getInt("profile_water_goal", -1).takeIf { it > 0 },
+            ageYears = sharedPreferences.getInt("profile_age", -1).takeIf { it > 0 },
+            gender = sharedPreferences.getString("profile_gender", null)?.trim()?.takeIf { it.isNotBlank() },
         ).takeIf {
             it.displayName != null ||
                 it.weightKgRaw != null ||
@@ -38,7 +42,9 @@ class SharedPreferencesLegacyProfileReader(
                 it.strideLengthMetersRaw != null ||
                 it.preferredUnits != null ||
                 it.dailyStepGoal != null ||
-                it.dailyWaterGoalMl != null
+                it.dailyWaterGoalMl != null ||
+                it.ageYears != null ||
+                it.gender != null
         }
     }
 
@@ -49,4 +55,3 @@ class SharedPreferencesLegacyProfileReader(
         }
     }
 }
-

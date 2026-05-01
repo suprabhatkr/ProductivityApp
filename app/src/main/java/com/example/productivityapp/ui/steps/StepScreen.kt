@@ -36,12 +36,13 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.Scaffold
@@ -89,6 +90,8 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.productivityapp.data.RepositoryProvider
 import com.example.productivityapp.service.StepCounterService
+import com.example.productivityapp.ui.settings.StepsFeatureSettingsDialog
+import com.example.productivityapp.ui.settings.rememberSharedSettingsViewModel
 import com.example.productivityapp.viewmodel.StepViewModelFactory
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.PermissionStatus
@@ -146,6 +149,9 @@ fun StepScreen(onBack: () -> Unit = {}) {
     val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
     val startInFlightState = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     val todaySegmentsState = vm.todaySegments.collectAsState()
+    val settingsViewModel = rememberSharedSettingsViewModel()
+    val settingsUiState = settingsViewModel.uiState.collectAsState()
+    var showFeatureSettings by rememberSaveable { mutableStateOf(false) }
 
     StepScreenContent(
         steps = steps.value,
@@ -203,8 +209,23 @@ fun StepScreen(onBack: () -> Unit = {}) {
             val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null))
             context.startActivity(intent)
         },
+        onOpenFeatureSettings = { showFeatureSettings = true },
         onBack = onBack,
     )
+
+    if (showFeatureSettings) {
+        StepsFeatureSettingsDialog(
+            uiState = settingsUiState.value,
+            onDismiss = { showFeatureSettings = false },
+            onDailyStepGoalChanged = settingsViewModel::updateDailyStepGoal,
+            onStrideLengthChanged = settingsViewModel::updateStrideLengthMeters,
+            onSave = {
+                if (settingsViewModel.saveSettings()) {
+                    showFeatureSettings = false
+                }
+            },
+        )
+    }
 }
 
 @Composable
@@ -222,6 +243,7 @@ fun StepScreenContent(
     onStopService: () -> Unit,
     onRequestPermission: () -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenFeatureSettings: () -> Unit = {},
     onBack: () -> Unit = {},
 ) {
     var showManualDialog by rememberSaveable { mutableStateOf(false) }
@@ -247,7 +269,16 @@ fun StepScreenContent(
                 title = { Text("Steps", fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, fontSize = 18.sp, color = topBarTitleColor) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(imageVector = Icons.Filled.ArrowBack, contentDescription = "Back", tint = topBarTitleColor)
+                        Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = topBarTitleColor)
+                    }
+                },
+                actions = {
+                    IconButton(onClick = onOpenFeatureSettings) {
+                        Icon(
+                            imageVector = Icons.Filled.Settings,
+                            contentDescription = "Open step settings",
+                            tint = topBarTitleColor,
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(

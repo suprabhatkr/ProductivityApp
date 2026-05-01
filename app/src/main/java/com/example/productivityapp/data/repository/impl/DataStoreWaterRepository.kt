@@ -6,6 +6,7 @@ import com.example.productivityapp.data.repository.WaterRepository
 import com.example.productivityapp.datastore.UserDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 
 class DataStoreWaterRepository(
     private val dataStore: UserDataStore,
@@ -24,6 +25,8 @@ class DataStoreWaterRepository(
             )
         }
     }
+
+    override suspend fun getDay(date: String): WaterDayData = observeDay(date).first()
 
     override suspend fun addEntry(date: String, amountMl: Int): Long {
         return dataStore.addEntryReturnId(date, amountMl)
