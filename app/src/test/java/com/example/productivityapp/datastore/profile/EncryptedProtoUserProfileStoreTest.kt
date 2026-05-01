@@ -1,5 +1,11 @@
 package com.example.productivityapp.datastore.profile
 
+import com.example.productivityapp.data.model.AvatarConfig
+import com.example.productivityapp.data.model.AvatarGlassesStyle
+import com.example.productivityapp.data.model.AvatarHairStyle
+import com.example.productivityapp.data.model.AvatarHatStyle
+import com.example.productivityapp.data.model.AvatarPresentation
+import com.example.productivityapp.data.model.AvatarSkinTone
 import com.example.productivityapp.data.model.UserProfile
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -33,6 +39,13 @@ class EncryptedProtoUserProfileStoreTest {
                 sleepDetectionBufferMinutes = 25,
                 ageYears = 33,
                 gender = "Male",
+                avatar = AvatarConfig(
+                    skinTone = AvatarSkinTone.DARK,
+                    presentation = AvatarPresentation.MASCULINE,
+                    hairStyle = AvatarHairStyle.SPIKY,
+                    glassesStyle = AvatarGlassesStyle.BOLD,
+                    hatStyle = AvatarHatStyle.CAP,
+                ),
             ),
             migrationState = ProfileMigrationState.MIGRATING,
             migratedAtEpochMs = 42L,

@@ -19,6 +19,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -26,10 +27,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.example.productivityapp.data.model.AppThemePreference
+import com.example.productivityapp.ui.avatar.AvatarPreview
 import com.example.productivityapp.viewmodel.AppearanceSettingsSectionState
 import com.example.productivityapp.viewmodel.ProfileSettingsSectionState
 import com.example.productivityapp.viewmodel.RunSettingsSectionState
@@ -54,6 +60,7 @@ fun ProfileSettingsSection(
     state: ProfileSettingsSectionState,
     tone: SettingsSectionTone,
     icon: ImageVector,
+    onOpenAvatarEditor: () -> Unit,
     onDisplayNameChanged: (String) -> Unit,
     onAgeChanged: (String) -> Unit,
     onGenderChanged: (String?) -> Unit,
@@ -66,6 +73,50 @@ fun ProfileSettingsSection(
         tone = tone,
         icon = icon,
     ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .semantics {
+                    contentDescription = "Edit avatar"
+                    role = Role.Button
+                }
+                .clickable(onClick = onOpenAvatarEditor),
+            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.42f),
+            shape = RoundedCornerShape(24.dp),
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                AvatarPreview(
+                    avatar = state.avatar,
+                    size = 84.dp,
+                    contentDescription = null,
+                )
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Text(
+                        text = "Profile avatar",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Text(
+                        text = "Personalize your look with skin, hair, glasses, hats, and more.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                OutlinedButton(onClick = onOpenAvatarEditor) {
+                    Text("Edit")
+                }
+            }
+        }
         SettingsTextField(
             value = state.displayName,
             onValueChange = onDisplayNameChanged,

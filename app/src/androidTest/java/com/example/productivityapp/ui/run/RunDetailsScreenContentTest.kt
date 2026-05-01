@@ -9,6 +9,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.example.productivityapp.data.entities.RunEntity
 import com.example.productivityapp.data.entities.RunPointEntity
+import com.example.productivityapp.data.model.OutdoorActivityType
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -31,8 +32,8 @@ class RunDetailsScreenContentTest {
             }
         }
 
-        composeRule.onNodeWithText("Run not found").assertIsDisplayed()
-        composeRule.onNodeWithText("Back to Run").assertIsDisplayed().performClick()
+        composeRule.onNodeWithText("Session not found").assertIsDisplayed()
+        composeRule.onNodeWithText("Back to Run & Walk").assertIsDisplayed().performClick()
 
         composeRule.runOnIdle {
             assertTrue(backPressed)
@@ -69,7 +70,7 @@ class RunDetailsScreenContentTest {
             }
         }
 
-        composeRule.onNodeWithText("This run does not have enough route data yet.").assertIsDisplayed()
+        composeRule.onNodeWithText("This run session does not have enough route data yet.").assertIsDisplayed()
         composeRule.onNodeWithText("Summary").assertIsDisplayed()
     }
 
@@ -78,6 +79,7 @@ class RunDetailsScreenContentTest {
         endTime: Long? = 8_000L,
     ): RunEntity = RunEntity(
         id = 7L,
+        activityType = OutdoorActivityType.RUN.storageValue,
         startTime = 1_700_000_000_000L,
         endTime = endTime,
         distanceMeters = 2450.0,

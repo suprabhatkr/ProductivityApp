@@ -1,6 +1,7 @@
 package com.example.productivityapp.ui.run
 
 import com.example.productivityapp.data.entities.RunEntity
+import com.example.productivityapp.data.model.OutdoorActivityType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -59,6 +60,7 @@ class RunDashboardSnapshotTest {
                 endTime = null,
                 distanceMeters = 800.0,
                 durationSec = 420L,
+                activityType = OutdoorActivityType.WALK,
             ),
             runEntity(
                 startTime = today.minusDays(1).atStartOfDay(zoneId).toInstant().toEpochMilli(),
@@ -75,7 +77,7 @@ class RunDashboardSnapshotTest {
             today = today,
         )
 
-        assertEquals("Run paused", snapshot.statusLabel)
+        assertEquals("Walk paused", snapshot.statusLabel)
         assertTrue(snapshot.hasPausedRun)
         assertEquals(5_200.0, snapshot.longestRunMeters, 0.0001)
         assertEquals("4:48 /km", snapshot.bestPaceLabel)
@@ -91,7 +93,7 @@ class RunDashboardSnapshotTest {
         )
 
         assertEquals("Ready to start", snapshot.statusLabel)
-        assertTrue(snapshot.statusDetail.contains("Start a run"))
+        assertTrue(snapshot.statusDetail.contains("Start a run or walk"))
         assertEquals(0.0, snapshot.todayDistanceMeters, 0.0001)
         assertEquals(0.0, snapshot.weeklyDistanceMeters, 0.0001)
         assertEquals(0, snapshot.totalRuns)
@@ -122,7 +124,9 @@ class RunDashboardSnapshotTest {
         endTime: Long?,
         distanceMeters: Double,
         durationSec: Long,
+        activityType: OutdoorActivityType = OutdoorActivityType.RUN,
     ): RunEntity = RunEntity(
+        activityType = activityType.storageValue,
         startTime = startTime,
         endTime = endTime,
         distanceMeters = distanceMeters,

@@ -225,6 +225,7 @@ internal fun MandatoryProfileSetupDialog(
                 state = uiState.profile,
                 tone = settingsToneFor(SettingsToneKey.PROFILE, isDark),
                 icon = Icons.Filled.PersonOutline,
+                onOpenAvatarEditor = {},
                 onDisplayNameChanged = onDisplayNameChanged,
                 onAgeChanged = onAgeChanged,
                 onGenderChanged = onGenderChanged,

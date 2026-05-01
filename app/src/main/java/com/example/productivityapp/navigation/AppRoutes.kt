@@ -6,6 +6,8 @@ object AppRoutes {
     const val STEPS = "steps"
     const val STEPS_LEGACY = "steps_legacy"
     const val RUN = "run"
+    const val WORKOUT = "workout"
+    const val MINDFULNESS = "mindfulness"
     const val RUN_DETAILS = "run/{runId}"
     const val SLEEP = "sleep"
     const val WATER = "water"

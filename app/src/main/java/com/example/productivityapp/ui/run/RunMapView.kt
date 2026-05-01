@@ -1,10 +1,11 @@
 package com.example.productivityapp.ui.run
 
 import android.view.ViewGroup
-import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
@@ -39,7 +40,7 @@ fun RunMapView(
     onMapReady: ((MapLibreMap) -> Unit)? = null,
 ) {
     val context = LocalContext.current
-    val isDarkTheme = isSystemInDarkTheme()
+    val isDarkTheme = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     val targetStyleUrl = remember(isDarkTheme) { RunMapStyleProvider.styleUrl(isDarkTheme) }
     val decodedPoints = remember(polylineEncoded) {
         if (polylineEncoded.isBlank()) emptyList() else PolylineUtils.decode(polylineEncoded)

@@ -14,4 +14,5 @@ data class UserProfile(
     val sleepDetectionBufferMinutes: Int = 30,
     val ageYears: Int? = null,
     val gender: String? = null,
+    val avatar: AvatarConfig = AvatarConfig(),
 )

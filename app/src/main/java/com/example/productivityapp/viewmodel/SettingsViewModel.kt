@@ -3,6 +3,12 @@ package com.example.productivityapp.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.productivityapp.data.model.AppThemePreference
+import com.example.productivityapp.data.model.AvatarConfig
+import com.example.productivityapp.data.model.AvatarGlassesStyle
+import com.example.productivityapp.data.model.AvatarHairStyle
+import com.example.productivityapp.data.model.AvatarHatStyle
+import com.example.productivityapp.data.model.AvatarPresentation
+import com.example.productivityapp.data.model.AvatarSkinTone
 import com.example.productivityapp.data.model.UserProfile
 import com.example.productivityapp.data.repository.AppThemeRepository
 import com.example.productivityapp.data.repository.UserProfileRepository
@@ -25,8 +31,14 @@ data class ProfileSettingsSectionState(
     val gender: String? = null,
     val heightCm: String = "",
     val weightKg: String = "",
+    val avatar: AvatarConfig = AvatarConfig(),
     val displayNameError: String? = null,
     val ageYearsError: String? = null,
+)
+
+data class AvatarEditorState(
+    val isVisible: Boolean = false,
+    val draft: AvatarConfig = AvatarConfig(),
 )
 
 data class AppearanceSettingsSectionState(
@@ -64,6 +76,7 @@ data class SettingsUiState(
     val run: RunSettingsSectionState = RunSettingsSectionState(),
     val water: WaterSettingsSectionState = WaterSettingsSectionState(),
     val sleep: SleepSettingsSectionState = SleepSettingsSectionState(),
+    val avatarEditor: AvatarEditorState = AvatarEditorState(),
 )
 
 private data class ValidatedSettings(
@@ -218,6 +231,53 @@ class SettingsViewModel(
         )
     }
 
+    fun openAvatarEditor() = updateField {
+        copy(
+            avatarEditor = AvatarEditorState(
+                isVisible = true,
+                draft = profile.avatar,
+            ),
+            message = null,
+        )
+    }
+
+    fun dismissAvatarEditor() = updateField {
+        copy(
+            avatarEditor = avatarEditor.copy(
+                isVisible = false,
+                draft = profile.avatar,
+            ),
+            message = null,
+        )
+    }
+
+    fun resetAvatarDraftToSaved() = updateField {
+        copy(
+            avatarEditor = avatarEditor.copy(draft = profile.avatar),
+            message = null,
+        )
+    }
+
+    fun updateAvatarSkinTone(value: AvatarSkinTone) = updateAvatarDraft { copy(skinTone = value) }
+
+    fun updateAvatarPresentation(value: AvatarPresentation) = updateAvatarDraft { copy(presentation = value) }
+
+    fun updateAvatarHairStyle(value: AvatarHairStyle) = updateAvatarDraft { copy(hairStyle = value) }
+
+    fun updateAvatarGlassesStyle(value: AvatarGlassesStyle) = updateAvatarDraft { copy(glassesStyle = value) }
+
+    fun updateAvatarHatStyle(value: AvatarHatStyle) = updateAvatarDraft { copy(hatStyle = value) }
+
+    fun applyAvatarDraft() = updateField {
+        val updatedAvatar = avatarEditor.draft
+        copy(
+            profile = profile.copy(avatar = updatedAvatar),
+            avatarEditor = avatarEditor.copy(isVisible = false, draft = updatedAvatar),
+            hasUnsavedChanges = hasUnsavedChanges || profile.avatar != updatedAvatar,
+            message = null,
+        )
+    }
+
     fun saveSettings(): Boolean {
         val current = _uiState.value
         val validated = validate(current) ?: return false
@@ -277,6 +337,7 @@ class SettingsViewModel(
                 gender = profile.gender,
                 heightCm = profile.heightCm?.toString().orEmpty(),
                 weightKg = profile.weightKg?.toEditableNumber().orEmpty(),
+                avatar = profile.avatar,
                 displayNameError = null,
                 ageYearsError = null,
             ),
@@ -299,11 +360,24 @@ class SettingsViewModel(
                 typicalWakeTime = profile.typicalWakeTimeMinutes.toClockString(),
                 sleepDetectionBufferMinutes = profile.sleepDetectionBufferMinutes.toString(),
             ),
+            avatarEditor = AvatarEditorState(
+                isVisible = false,
+                draft = profile.avatar,
+            ),
         )
     }
 
     private fun updateField(transform: SettingsUiState.() -> SettingsUiState) {
         _uiState.value = _uiState.value.transform()
+    }
+
+    private fun updateAvatarDraft(transform: AvatarConfig.() -> AvatarConfig) = updateField {
+        copy(
+            avatarEditor = avatarEditor.copy(
+                draft = avatarEditor.draft.transform(),
+            ),
+            message = null,
+        )
     }
 
     private fun validate(state: SettingsUiState): ValidatedSettings? {
@@ -454,6 +528,7 @@ class SettingsViewModel(
                 sleepDetectionBufferMinutes = buffer,
                 ageYears = age,
                 gender = profileState.gender?.takeIf { it in SupportedGenderOptions },
+                avatar = profileState.avatar,
             ),
             themePreference = state.appearance.themePreference,
         )

@@ -1,5 +1,11 @@
 package com.example.productivityapp.datastore.profile
 
+import com.example.productivityapp.data.model.AvatarConfig
+import com.example.productivityapp.data.model.AvatarGlassesStyle
+import com.example.productivityapp.data.model.AvatarHairStyle
+import com.example.productivityapp.data.model.AvatarHatStyle
+import com.example.productivityapp.data.model.AvatarPresentation
+import com.example.productivityapp.data.model.AvatarSkinTone
 import com.example.productivityapp.data.model.UserProfile
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -34,6 +40,7 @@ class UserProfileSchemaMapperTest {
         assertEquals(1320, mapped.profile.typicalBedtimeMinutes)
         assertEquals(420, mapped.profile.typicalWakeTimeMinutes)
         assertEquals(30, mapped.profile.sleepDetectionBufferMinutes)
+        assertEquals(AvatarConfig(), mapped.profile.avatar)
         assertEquals(ProfileMigrationState.NONE, mapped.migrationState)
     }
 
@@ -64,6 +71,7 @@ class UserProfileSchemaMapperTest {
         assertEquals(1320, mapped.profile.typicalBedtimeMinutes)
         assertEquals(420, mapped.profile.typicalWakeTimeMinutes)
         assertEquals(30, mapped.profile.sleepDetectionBufferMinutes)
+        assertEquals(AvatarConfig(), mapped.profile.avatar)
     }
 
     @Test
@@ -83,6 +91,13 @@ class UserProfileSchemaMapperTest {
                 sleepDetectionBufferMinutes = 35,
                 ageYears = 27,
                 gender = "Female",
+                avatar = AvatarConfig(
+                    skinTone = AvatarSkinTone.MEDIUM_DARK,
+                    presentation = AvatarPresentation.FEMININE,
+                    hairStyle = AvatarHairStyle.CURLY,
+                    glassesStyle = AvatarGlassesStyle.ROUND,
+                    hatStyle = AvatarHatStyle.BEANIE,
+                ),
             ),
             schemaVersion = SecureStoredUserProfile.CURRENT_SCHEMA_VERSION,
             migrationState = ProfileMigrationState.MIGRATING,
@@ -93,5 +108,24 @@ class UserProfileSchemaMapperTest {
         val restored = UserProfileSchemaMapper.fromProto(UserProfileSchemaMapper.toProto(original))
 
         assertEquals(original, restored)
+    }
+
+    @Test
+    fun fromProto_missingAvatarFields_defaultsAvatarConfig() {
+        val proto = UserProfileSchemaMapper.toProto(
+            SecureStoredUserProfile(
+                profile = UserProfile(displayName = "Casey"),
+            )
+        ).toBuilder()
+            .clearAvatarSkinTone()
+            .clearAvatarPresentation()
+            .clearAvatarHairStyle()
+            .clearAvatarGlassesStyle()
+            .clearAvatarHatStyle()
+            .build()
+
+        val restored = UserProfileSchemaMapper.fromProto(proto)
+
+        assertEquals(AvatarConfig(), restored.profile.avatar)
     }
 }

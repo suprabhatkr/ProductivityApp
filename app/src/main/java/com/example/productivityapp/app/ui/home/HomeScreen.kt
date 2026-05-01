@@ -18,11 +18,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.DirectionsRun
+import androidx.compose.material.icons.automirrored.filled.DirectionsRun
+import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.Hotel
+import androidx.compose.material.icons.filled.SelfImprovement
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.WaterDrop
-import androidx.compose.material.icons.filled.DirectionsWalk
+import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -58,6 +60,8 @@ fun HomeScreen(
     onNavigateToSteps: () -> Unit,
     onNavigateToStepsLegacy: () -> Unit,
     onNavigateToRun: () -> Unit,
+    onNavigateToWorkout: () -> Unit,
+    onNavigateToMindfulness: () -> Unit,
     onNavigateToSleep: () -> Unit,
     onNavigateToWater: () -> Unit,
     onNavigateToSettings: () -> Unit,
@@ -76,6 +80,8 @@ fun HomeScreen(
         onNavigateToSteps = onNavigateToSteps,
         onNavigateToStepsLegacy = onNavigateToStepsLegacy,
         onNavigateToRun = onNavigateToRun,
+        onNavigateToWorkout = onNavigateToWorkout,
+        onNavigateToMindfulness = onNavigateToMindfulness,
         onNavigateToSleep = onNavigateToSleep,
         onNavigateToWater = onNavigateToWater,
         onNavigateToSettings = onNavigateToSettings,
@@ -91,6 +97,8 @@ fun HomeScreenContent(
     onNavigateToSteps: () -> Unit,
     onNavigateToStepsLegacy: () -> Unit,
     onNavigateToRun: () -> Unit,
+    onNavigateToWorkout: () -> Unit,
+    onNavigateToMindfulness: () -> Unit,
     onNavigateToSleep: () -> Unit,
     onNavigateToWater: () -> Unit,
     onNavigateToSettings: () -> Unit,
@@ -156,7 +164,7 @@ fun HomeScreenContent(
                 FeatureDashboardCard(
                     summary = uiState.stepsSummary,
                     tone = featureTone(HomeFeature.STEPS, isDark),
-                    icon = Icons.Filled.DirectionsWalk,
+                    icon = Icons.AutoMirrored.Filled.DirectionsWalk,
                     onClick = onNavigateToSteps,
                     cardContentDescription = "Open steps",
                 )
@@ -165,9 +173,27 @@ fun HomeScreenContent(
                 FeatureDashboardCard(
                     summary = uiState.runSummary,
                     tone = featureTone(HomeFeature.RUN, isDark),
-                    icon = Icons.Filled.DirectionsRun,
+                    icon = Icons.AutoMirrored.Filled.DirectionsRun,
                     onClick = onNavigateToRun,
-                    cardContentDescription = "Open run",
+                    cardContentDescription = "Open run and walk",
+                )
+            }
+            item {
+                FeatureDashboardCard(
+                    summary = uiState.workoutSummary,
+                    tone = featureTone(HomeFeature.WORKOUT, isDark),
+                    icon = Icons.Filled.FitnessCenter,
+                    onClick = onNavigateToWorkout,
+                    cardContentDescription = "Open workout",
+                )
+            }
+            item {
+                FeatureDashboardCard(
+                    summary = uiState.mindfulnessSummary,
+                    tone = featureTone(HomeFeature.MINDFULNESS, isDark),
+                    icon = Icons.Filled.SelfImprovement,
+                    onClick = onNavigateToMindfulness,
+                    cardContentDescription = "Open mindfulness",
                 )
             }
             item {
@@ -321,7 +347,7 @@ private fun FooterPolicyCard(
     }
 }
 
-private enum class HomeFeature { WATER, STEPS, RUN, SLEEP, SETTINGS }
+private enum class HomeFeature { WATER, STEPS, RUN, WORKOUT, MINDFULNESS, SLEEP, SETTINGS }
 
 private data class FeatureTone(
     val container: Color,
@@ -350,6 +376,18 @@ private fun featureTone(feature: HomeFeature, isDark: Boolean): FeatureTone {
             badge = if (isDark) Color(0xFF2D1E42) else Color(0xFFE9D5FF),
             accent = if (isDark) Color(0xFFC3A8FF) else Color(0xFF7E22CE),
             icon = if (isDark) Color(0xFFC3A8FF) else Color(0xFF7E22CE),
+        )
+        HomeFeature.WORKOUT -> FeatureTone(
+            container = if (isDark) Color(0xFF18243B) else Color(0xFFEAF0FF),
+            badge = if (isDark) Color(0xFF22304A) else Color(0xFFDCE7FF),
+            accent = if (isDark) Color(0xFFA5B4FC) else Color(0xFF4338CA),
+            icon = if (isDark) Color(0xFFA5B4FC) else Color(0xFF4338CA),
+        )
+        HomeFeature.MINDFULNESS -> FeatureTone(
+            container = if (isDark) Color(0xFF132327) else Color(0xFFE9F8F5),
+            badge = if (isDark) Color(0xFF1D343A) else Color(0xFFD5F0EA),
+            accent = if (isDark) Color(0xFF8DE2D5) else Color(0xFF0F8C83),
+            icon = if (isDark) Color(0xFF8DE2D5) else Color(0xFF0F8C83),
         )
         HomeFeature.SLEEP -> FeatureTone(
             container = if (isDark) Color(0xFF13261C) else Color(0xFFECFDF5),

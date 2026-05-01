@@ -23,6 +23,7 @@ import com.example.productivityapp.app.viewmodel.HomeViewModelFactory
 import com.example.productivityapp.app.viewmodel.WaterViewModel
 import com.example.productivityapp.app.viewmodel.WaterViewModelFactory
 import com.example.productivityapp.data.RepositoryProvider
+import com.example.productivityapp.data.model.AppThemePreference
 import com.example.productivityapp.data.model.UserProfile
 import com.example.productivityapp.ui.debug.MigrationStatusOverlay
 import com.example.productivityapp.navigation.AppRoutes
@@ -31,11 +32,13 @@ import com.example.productivityapp.service.MidnightResetWorker
 import com.example.productivityapp.service.SleepMaintenanceWorker
 import com.example.productivityapp.ui.run.RunDetailsScreen
 import com.example.productivityapp.ui.run.RunScreen
+import com.example.productivityapp.ui.mindfulness.MindfulnessScreen
 import com.example.productivityapp.ui.sleep.SleepScreen
 import com.example.productivityapp.ui.settings.MandatoryProfileSetupDialog
 import com.example.productivityapp.ui.settings.SettingsScreen
 import com.example.productivityapp.ui.steps.StepScreen
 import com.example.productivityapp.ui.theme.ProductivityAppTheme
+import com.example.productivityapp.ui.workout.WorkoutScreen
 import com.example.productivityapp.viewmodel.SettingsViewModel
 import com.example.productivityapp.viewmodel.SettingsViewModelFactory
 
@@ -48,14 +51,20 @@ class MainActivity : ComponentActivity() {
         HealthReminderWorker.ensureScheduled(applicationContext)
 
         setContent {
-            ProductivityAppTheme(darkTheme = isSystemInDarkTheme()) {
+            val appThemeRepository = remember { RepositoryProvider.provideAppThemeRepository(this@MainActivity) }
+            val themePreference by appThemeRepository.observeThemePreference().collectAsState(
+                initial = AppThemePreference.SYSTEM
+            )
+            val darkTheme = shouldUseDarkTheme(themePreference, isSystemInDarkTheme())
+
+            ProductivityAppTheme(darkTheme = darkTheme) {
                 val navController = rememberNavController()
                 val ctx = LocalContext.current
                 val profileRepository = remember { RepositoryProvider.provideUserProfileRepository(this@MainActivity) }
                 val profileSetupViewModel: SettingsViewModel = viewModel(
                     factory = SettingsViewModelFactory(
                         profileRepository = profileRepository,
-                        themeRepository = RepositoryProvider.provideAppThemeRepository(this@MainActivity),
+                        themeRepository = appThemeRepository,
                     )
                 )
                 val profileSetupState by profileSetupViewModel.uiState.collectAsState()
@@ -73,6 +82,8 @@ class MainActivity : ComponentActivity() {
                                 waterRepository = RepositoryProvider.provideWaterRepository(this@MainActivity),
                                 stepRepository = RepositoryProvider.provideStepRepository(this@MainActivity),
                                 runRepository = RepositoryProvider.provideRunRepository(this@MainActivity),
+                                workoutRepository = RepositoryProvider.provideWorkoutRepository(this@MainActivity),
+                                mindfulnessRepository = RepositoryProvider.provideMindfulnessRepository(this@MainActivity),
                                 sleepRepository = RepositoryProvider.provideSleepRepository(this@MainActivity),
                                 userProfileRepository = RepositoryProvider.provideUserProfileRepository(this@MainActivity),
                             )
@@ -81,6 +92,8 @@ class MainActivity : ComponentActivity() {
                             onNavigateToSteps = { navController.navigate(AppRoutes.STEPS) },
                             onNavigateToStepsLegacy = { navController.navigate(AppRoutes.STEPS_LEGACY) },
                             onNavigateToRun = { navController.navigate(AppRoutes.RUN) },
+                            onNavigateToWorkout = { navController.navigate(AppRoutes.WORKOUT) },
+                            onNavigateToMindfulness = { navController.navigate(AppRoutes.MINDFULNESS) },
                             onNavigateToSleep = { navController.navigate(AppRoutes.SLEEP) },
                             onNavigateToWater = { navController.navigate(AppRoutes.WATER) },
                             onNavigateToSettings = { navController.navigate(AppRoutes.SETTINGS) },
@@ -96,6 +109,12 @@ class MainActivity : ComponentActivity() {
                             onBack = { navController.popBackStack() },
                             onOpenRunDetails = { runId -> navController.navigate(AppRoutes.runDetails(runId)) },
                         )
+                    }
+                    composable(AppRoutes.WORKOUT) {
+                        WorkoutScreen(onBack = { navController.popBackStack() })
+                    }
+                    composable(AppRoutes.MINDFULNESS) {
+                        MindfulnessScreen(onBack = { navController.popBackStack() })
                     }
                     composable(AppRoutes.RUN_DETAILS) { backStackEntry ->
                         val runId = backStackEntry.arguments?.getString("runId")?.toLongOrNull()
@@ -147,4 +166,15 @@ class MainActivity : ComponentActivity() {
 
 internal fun requiresMandatoryProfileSetup(profile: UserProfile): Boolean {
     return profile.displayName.isNullOrBlank() || profile.ageYears == null
+}
+
+internal fun shouldUseDarkTheme(
+    themePreference: AppThemePreference,
+    systemDarkTheme: Boolean,
+): Boolean {
+    return when (themePreference) {
+        AppThemePreference.SYSTEM -> systemDarkTheme
+        AppThemePreference.LIGHT -> false
+        AppThemePreference.DARK -> true
+    }
 }

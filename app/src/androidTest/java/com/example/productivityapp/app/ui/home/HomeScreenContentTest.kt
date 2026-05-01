@@ -29,6 +29,8 @@ class HomeScreenContentTest {
                     onNavigateToSteps = {},
                     onNavigateToStepsLegacy = {},
                     onNavigateToRun = {},
+                    onNavigateToWorkout = {},
+                    onNavigateToMindfulness = {},
                     onNavigateToSleep = {},
                     onNavigateToWater = {},
                     onNavigateToSettings = {},
@@ -41,6 +43,8 @@ class HomeScreenContentTest {
         composeRule.onNodeWithText("750 ml").assertIsDisplayed()
         composeRule.onNodeWithText("8,200 steps").assertIsDisplayed()
         composeRule.onNodeWithText("3.20 km").assertIsDisplayed()
+        composeRule.onNodeWithText("45m").assertIsDisplayed()
+        composeRule.onNodeWithText("15m").assertIsDisplayed()
         composeRule.onNodeWithText("7h 25m").assertIsDisplayed()
         composeRule.onAllNodesWithText("Your daily snapshot across steps, runs, sleep, water, and preferences.").assertCountEquals(0)
         composeRule.onAllNodesWithText("37% of 2000 ml goal").assertCountEquals(0)
@@ -63,6 +67,8 @@ class HomeScreenContentTest {
                     onNavigateToSteps = {},
                     onNavigateToStepsLegacy = {},
                     onNavigateToRun = {},
+                    onNavigateToWorkout = {},
+                    onNavigateToMindfulness = {},
                     onNavigateToSleep = {},
                     onNavigateToWater = {},
                     onNavigateToSettings = { settingsOpened = true },
@@ -110,6 +116,20 @@ private fun sampleHomeUiState(): HomeDashboardUiState {
             supporting = "1 run today",
             secondary = "Latest 5.00 km",
             progressFraction = 0.64f,
+        ),
+        workoutSummary = HomeFeatureSummary(
+            title = "Workout",
+            headline = "45m",
+            supporting = "1 session today",
+            secondary = "Latest Yoga",
+            progressFraction = null,
+        ),
+        mindfulnessSummary = HomeFeatureSummary(
+            title = "Mindfulness",
+            headline = "15m",
+            supporting = "1 session • 1 reflection",
+            secondary = "Latest Breathing",
+            progressFraction = null,
         ),
         sleepSummary = HomeFeatureSummary(
             title = "Sleep",

@@ -2,17 +2,21 @@ package com.example.productivityapp.data
 
 import android.content.Context
 import com.example.productivityapp.data.repository.AppThemeRepository
+import com.example.productivityapp.data.repository.MindfulnessRepository
 import com.example.productivityapp.data.repository.RunRepository
 import com.example.productivityapp.data.repository.SleepRepository
 import com.example.productivityapp.data.repository.StepRepository
 import com.example.productivityapp.data.repository.UserProfileRepository
 import com.example.productivityapp.data.repository.WaterRepository
+import com.example.productivityapp.data.repository.WorkoutRepository
 import com.example.productivityapp.data.repository.impl.DataStoreAppThemeRepository
 import com.example.productivityapp.data.repository.impl.DataStoreUserProfileRepository
 import com.example.productivityapp.data.repository.impl.DataStoreWaterRepository
+import com.example.productivityapp.data.repository.impl.RoomMindfulnessRepository
 import com.example.productivityapp.data.repository.impl.RoomRunRepository
 import com.example.productivityapp.data.repository.impl.RoomSleepRepository
 import com.example.productivityapp.data.repository.impl.RoomStepRepository
+import com.example.productivityapp.data.repository.impl.RoomWorkoutRepository
 import com.example.productivityapp.data.repository.impl.SecureAwareUserProfileRepository
 import com.example.productivityapp.datastore.UserDataStore
 import com.example.productivityapp.datastore.profile.EncryptedProtoUserProfileStore
@@ -41,6 +45,16 @@ object RepositoryProvider {
     fun provideRunRepository(context: Context): RunRepository {
         val db = DatabaseProvider.getInstance(context)
         return RoomRunRepository(db)
+    }
+
+    fun provideWorkoutRepository(context: Context): WorkoutRepository {
+        val db = DatabaseProvider.getInstance(context)
+        return RoomWorkoutRepository(db.workoutDao())
+    }
+
+    fun provideMindfulnessRepository(context: Context): MindfulnessRepository {
+        val db = DatabaseProvider.getInstance(context)
+        return RoomMindfulnessRepository(db.mindfulnessDao())
     }
 
     fun provideRunReplayExporter(context: Context): RunReplayExporter {

@@ -2,9 +2,12 @@ package com.example.productivityapp.app.viewmodel
 
 import com.example.productivityapp.app.data.model.WaterDayData
 import com.example.productivityapp.app.data.model.WaterEntry
+import com.example.productivityapp.data.entities.MindLogEntity
+import com.example.productivityapp.data.entities.MindfulnessSessionEntity
 import com.example.productivityapp.data.entities.RunEntity
 import com.example.productivityapp.data.entities.SleepEntity
 import com.example.productivityapp.data.entities.StepEntity
+import com.example.productivityapp.data.entities.WorkoutEntity
 import com.example.productivityapp.data.model.UserProfile
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -52,6 +55,38 @@ class HomeViewModelTest {
                     polyline = "",
                 )
             ),
+            workouts = listOf(
+                WorkoutEntity(
+                    id = 8L,
+                    workoutType = "yoga",
+                    startTime = LocalDateTime.of(date, LocalTime.of(18, 0))
+                        .atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                    endTime = LocalDateTime.of(date, LocalTime.of(18, 45))
+                        .atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                    durationSec = 45 * 60L,
+                    notes = null,
+                )
+            ),
+            mindfulnessSessions = listOf(
+                MindfulnessSessionEntity(
+                    id = 9L,
+                    sessionType = "breathing",
+                    startTime = LocalDateTime.of(date, LocalTime.of(20, 0))
+                        .atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                    endTime = LocalDateTime.of(date, LocalTime.of(20, 15))
+                        .atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                    durationSec = 15 * 60L,
+                    note = null,
+                )
+            ),
+            mindLogs = listOf(
+                MindLogEntity(
+                    id = 10L,
+                    createdAt = LocalDateTime.of(date, LocalTime.of(20, 30))
+                        .atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                    content = "Feeling calmer after a short breathing reset.",
+                )
+            ),
             sleeps = listOf(
                 SleepEntity(
                     id = 3L,
@@ -74,6 +109,8 @@ class HomeViewModelTest {
         assertEquals("1250 ml", uiState.waterSummary.headline)
         assertEquals("8,200 steps", uiState.stepsSummary.headline)
         assertEquals("3.20 km", uiState.runSummary.headline)
+        assertEquals("45m", uiState.workoutSummary.headline)
+        assertEquals("15m", uiState.mindfulnessSummary.headline)
         assertEquals("7h 25m", uiState.sleepSummary.headline)
         assertTrue(uiState.heroChips.any { it.contains("Water 62%") })
     }
