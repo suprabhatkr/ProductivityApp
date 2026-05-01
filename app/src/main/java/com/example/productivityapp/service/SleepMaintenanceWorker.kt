@@ -88,7 +88,7 @@ class SleepMaintenanceWorker(
             val profile = profileRepo.getUserProfileBlocking()
             val activeBeforeMaintenance = sleepRepo.getActiveSleepSession()
 
-            finalizeWakeIfNeeded(sleepRepo, profile, now)
+            finalizeWakeIfNeeded(context, sleepRepo, profile, now)
             markProvisionalForReviewIfNeeded(sleepRepo, profile, now)
             detectSleepStartIfNeeded(context, sleepRepo, profile, now, activeBeforeMaintenance == null)
         }
@@ -102,6 +102,7 @@ class SleepMaintenanceWorker(
         }
 
         private suspend fun finalizeWakeIfNeeded(
+            context: Context,
             sleepRepo: SleepRepository,
             profile: UserProfile,
             now: ZonedDateTime,
@@ -121,7 +122,8 @@ class SleepMaintenanceWorker(
                     SleepReviewState.CONFIRMED.storageValue
                 },
             )
-            sleepRepo.stopSleep(finalized)
+            val stopped = sleepRepo.stopSleep(finalized)
+            SleepReminderEvents.notifyWakeFollowUp(context, stopped)
         }
 
         private suspend fun markProvisionalForReviewIfNeeded(

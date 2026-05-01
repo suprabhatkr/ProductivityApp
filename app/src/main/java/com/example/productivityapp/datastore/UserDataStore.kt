@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.preferencesDataStoreFile
 import androidx.datastore.core.DataStore
 import androidx.datastore.core.DataStoreFactory
+import com.example.productivityapp.data.model.AppThemePreference
 import com.example.productivityapp.data.model.UserProfile
 import com.example.productivityapp.app.data.model.WaterEntry
 import org.json.JSONArray
@@ -80,6 +81,8 @@ class UserDataStore(
     private val PROFILE_NAME_KEY = "profile_name"
     private val PROFILE_WEIGHT_KEY = "profile_weight"
     private val PROFILE_HEIGHT_KEY = "profile_height"
+    private val PROFILE_AGE_KEY = "profile_age"
+    private val PROFILE_GENDER_KEY = "profile_gender"
     private val PROFILE_STRIDE_KEY = "profile_stride"
     private val PROFILE_UNITS_KEY = "profile_units"
     private val PROFILE_STEP_GOAL_KEY = "profile_step_goal"
@@ -89,6 +92,24 @@ class UserDataStore(
     private val PROFILE_SLEEP_WAKE_KEY = "profile_sleep_wake"
     private val PROFILE_SLEEP_BUFFER_KEY = "profile_sleep_buffer"
     private val PROFILE_VERSION = intPreferencesKey("profile_version")
+    private val APP_THEME_KEY = stringPreferencesKey("app_theme")
+
+    fun observeThemePreference(): Flow<AppThemePreference> {
+        return dataStore.data.map { prefs ->
+            AppThemePreference.fromStorageValue(prefs[APP_THEME_KEY])
+        }
+    }
+
+    suspend fun updateThemePreference(preference: AppThemePreference) {
+        dataStore.edit { prefs ->
+            if (preference == AppThemePreference.SYSTEM) {
+                prefs.remove(APP_THEME_KEY)
+            } else {
+                prefs[APP_THEME_KEY] = preference.storageValue
+            }
+        }
+    }
+
     fun observeWaterForDate(date: String): Flow<Int> {
         val key = waterKeyForDate(date)
         return dataStore.data.map { prefs -> prefs[key] ?: 0 }
@@ -167,7 +188,7 @@ class UserDataStore(
                             val obj = arr.optJSONObject(i) ?: continue
                             val id = obj.optLong("id", System.currentTimeMillis())
                             val amount = obj.optInt("amountMl", 0)
-                            val ts = obj.optString("timestamp", null)
+                            val ts = obj.optString("timestamp").takeIf { it.isNotBlank() && it != "null" }
                             val epochMs = try {
                                 if (ts != null) {
                                     java.time.LocalDateTime.parse(ts).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
@@ -247,6 +268,8 @@ class UserDataStore(
         val name = securePrefs.getString(PROFILE_NAME_KEY, null)
         val weight = securePrefs.getString(PROFILE_WEIGHT_KEY, null)?.toDoubleOrNull()
         val height = securePrefs.getInt(PROFILE_HEIGHT_KEY, -1).let { if (it <= 0) null else it }
+        val age = securePrefs.getInt(PROFILE_AGE_KEY, -1).let { if (it <= 0) null else it }
+        val gender = securePrefs.getString(PROFILE_GENDER_KEY, null)?.trim()?.takeIf { it.isNotBlank() }
         val stride = securePrefs.getString(PROFILE_STRIDE_KEY, null)?.toDoubleOrNull() ?: 0.78
         val units = securePrefs.getString(PROFILE_UNITS_KEY, "metric") ?: "metric"
         val stepGoal = securePrefs.getInt(PROFILE_STEP_GOAL_KEY, 10000)
@@ -267,6 +290,8 @@ class UserDataStore(
             typicalBedtimeMinutes = typicalBedtimeMinutes,
             typicalWakeTimeMinutes = typicalWakeTimeMinutes,
             sleepDetectionBufferMinutes = sleepDetectionBufferMinutes,
+            ageYears = age,
+            gender = gender,
         )
     }
 
@@ -295,6 +320,19 @@ class UserDataStore(
                 editor.remove(PROFILE_HEIGHT_KEY)
             }
 
+            if (profile.ageYears != null) {
+                editor.putInt(PROFILE_AGE_KEY, profile.ageYears)
+            } else {
+                editor.remove(PROFILE_AGE_KEY)
+            }
+
+            val gender = profile.gender?.trim().orEmpty()
+            if (gender.isBlank()) {
+                editor.remove(PROFILE_GENDER_KEY)
+            } else {
+                editor.putString(PROFILE_GENDER_KEY, gender)
+            }
+
             editor.putString(PROFILE_STRIDE_KEY, profile.strideLengthMeters.toString())
             editor.putString(PROFILE_UNITS_KEY, profile.preferredUnits)
             editor.putInt(PROFILE_STEP_GOAL_KEY, profile.dailyStepGoal)
@@ -320,6 +358,8 @@ class UserDataStore(
         val name = securePrefs.getString(PROFILE_NAME_KEY, null)
         val weight = securePrefs.getString(PROFILE_WEIGHT_KEY, null)?.toDoubleOrNull()
         val height = securePrefs.getInt(PROFILE_HEIGHT_KEY, -1).let { if (it <= 0) null else it }
+        val age = securePrefs.getInt(PROFILE_AGE_KEY, -1).let { if (it <= 0) null else it }
+        val gender = securePrefs.getString(PROFILE_GENDER_KEY, null)?.trim()?.takeIf { it.isNotBlank() }
         val stride = securePrefs.getString(PROFILE_STRIDE_KEY, null)?.toDoubleOrNull() ?: 0.78
         val units = securePrefs.getString(PROFILE_UNITS_KEY, "metric") ?: "metric"
         val stepGoal = securePrefs.getInt(PROFILE_STEP_GOAL_KEY, 10000)
@@ -340,6 +380,8 @@ class UserDataStore(
             typicalBedtimeMinutes = typicalBedtimeMinutes,
             typicalWakeTimeMinutes = typicalWakeTimeMinutes,
             sleepDetectionBufferMinutes = sleepDetectionBufferMinutes,
+            ageYears = age,
+            gender = gender,
         )
     }
 

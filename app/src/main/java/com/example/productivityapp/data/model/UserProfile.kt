@@ -11,5 +11,7 @@ data class UserProfile(
     val nightlySleepGoalMinutes: Int = 480,
     val typicalBedtimeMinutes: Int = 1320,
     val typicalWakeTimeMinutes: Int = 420,
-    val sleepDetectionBufferMinutes: Int = 30
+    val sleepDetectionBufferMinutes: Int = 30,
+    val ageYears: Int? = null,
+    val gender: String? = null,
 )

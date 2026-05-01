@@ -24,6 +24,8 @@ class UserProfileSchemaMapperTest {
         assertNull(mapped.profile.displayName)
         assertNull(mapped.profile.weightKg)
         assertNull(mapped.profile.heightCm)
+        assertNull(mapped.profile.ageYears)
+        assertNull(mapped.profile.gender)
         assertEquals(0.78, mapped.profile.strideLengthMeters, 0.0)
         assertEquals("metric", mapped.profile.preferredUnits)
         assertEquals(10000, mapped.profile.dailyStepGoal)
@@ -52,6 +54,8 @@ class UserProfileSchemaMapperTest {
         assertEquals("Alex", mapped.profile.displayName)
         assertNull(mapped.profile.weightKg)
         assertNull(mapped.profile.heightCm)
+        assertNull(mapped.profile.ageYears)
+        assertNull(mapped.profile.gender)
         assertEquals(0.78, mapped.profile.strideLengthMeters, 0.0)
         assertEquals("imperial", mapped.profile.preferredUnits)
         assertEquals(10000, mapped.profile.dailyStepGoal)
@@ -77,6 +81,8 @@ class UserProfileSchemaMapperTest {
                 typicalBedtimeMinutes = 1365,
                 typicalWakeTimeMinutes = 405,
                 sleepDetectionBufferMinutes = 35,
+                ageYears = 27,
+                gender = "Female",
             ),
             schemaVersion = SecureStoredUserProfile.CURRENT_SCHEMA_VERSION,
             migrationState = ProfileMigrationState.MIGRATING,

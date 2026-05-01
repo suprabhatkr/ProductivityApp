@@ -31,6 +31,8 @@ class EncryptedProtoUserProfileStoreTest {
                 typicalBedtimeMinutes = 1370,
                 typicalWakeTimeMinutes = 410,
                 sleepDetectionBufferMinutes = 25,
+                ageYears = 33,
+                gender = "Male",
             ),
             migrationState = ProfileMigrationState.MIGRATING,
             migratedAtEpochMs = 42L,

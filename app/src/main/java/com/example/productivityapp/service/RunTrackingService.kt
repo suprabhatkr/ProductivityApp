@@ -34,6 +34,7 @@ class RunTrackingService : Service() {
         const val ACTION_STOP = "com.example.productivityapp.action.STOP_RUN"
         private const val CHANNEL_ID = "run_service_channel"
         private const val NOTIF_ID = 2001
+        private const val DEFAULT_DAILY_RUN_GOAL_METERS = 5_000.0
     }
 
     private val serviceJob = Job()
@@ -250,9 +251,28 @@ class RunTrackingService : Service() {
                             avgSpeedMps = avgSpeed
                         )
                         repo.updateRun(updated)
+                        maybeSendRunMilestones(runId = existing.id, distanceMeters = distanceMeters)
                     }
                 }
             } catch (_: Throwable) {
+            }
+        }
+    }
+
+    private fun maybeSendRunMilestones(runId: Long, distanceMeters: Double) {
+        val stateStore = HealthReminderStateStore(applicationContext)
+        when {
+            distanceMeters >= DEFAULT_DAILY_RUN_GOAL_METERS * 0.9 &&
+                stateStore.shouldNotifyRunNinety(runId) -> {
+                HealthReminderNotifier.sendRunNinetyReminder(applicationContext)
+                stateStore.markRunNinety(runId)
+                stateStore.markRunHalf(runId)
+            }
+
+            distanceMeters >= DEFAULT_DAILY_RUN_GOAL_METERS * 0.5 &&
+                stateStore.shouldNotifyRunHalf(runId) -> {
+                HealthReminderNotifier.sendRunHalfReminder(applicationContext)
+                stateStore.markRunHalf(runId)
             }
         }
     }

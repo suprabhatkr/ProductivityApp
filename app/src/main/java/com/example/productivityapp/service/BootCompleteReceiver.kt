@@ -11,6 +11,7 @@ class BootCompleteReceiver : BroadcastReceiver() {
         if (intent?.action == Intent.ACTION_BOOT_COMPLETED) {
             runCatching { MidnightResetWorker.schedule(appContext) }
             runCatching { SleepMaintenanceWorker.schedule(appContext) }
+            runCatching { HealthReminderWorker.ensureScheduled(appContext) }
         }
     }
 }

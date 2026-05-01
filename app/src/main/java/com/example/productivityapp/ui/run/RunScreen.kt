@@ -22,9 +22,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
@@ -60,6 +64,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.productivityapp.data.RepositoryProvider
 import com.example.productivityapp.data.entities.RunEntity
 import com.example.productivityapp.service.RunTrackingService
+import com.example.productivityapp.ui.settings.RunFeatureSettingsDialog
+import com.example.productivityapp.ui.settings.rememberSharedSettingsViewModel
 import com.example.productivityapp.viewmodel.RunViewModel
 import com.example.productivityapp.viewmodel.RunViewModelFactory
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
@@ -117,6 +123,9 @@ fun RunScreen(
     val runningState = vm.uiRunning.collectAsState()
     var running by rememberSaveable { mutableStateOf(runningState.value) }
     LaunchedEffect(runningState.value) { running = runningState.value }
+    val settingsViewModel = rememberSharedSettingsViewModel()
+    val settingsUiState = settingsViewModel.uiState.collectAsState()
+    var showFeatureSettings by rememberSaveable { mutableStateOf(false) }
 
     val hasPausedRun = hasPausedRun(latest, running)
     val permissionUiState = remember(
@@ -212,8 +221,22 @@ fun RunScreen(
             }
         },
         onOpenRunDetails = onOpenRunDetails,
+        onOpenFeatureSettings = { showFeatureSettings = true },
         onBack = onBack,
     )
+
+    if (showFeatureSettings) {
+        RunFeatureSettingsDialog(
+            uiState = settingsUiState.value,
+            onDismiss = { showFeatureSettings = false },
+            onPreferredUnitsChanged = settingsViewModel::updatePreferredUnits,
+            onSave = {
+                if (settingsViewModel.saveSettings()) {
+                    showFeatureSettings = false
+                }
+            },
+        )
+    }
 }
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
@@ -228,6 +251,7 @@ internal fun RunScreenContent(
     onResumeRun: () -> Unit,
     onPermissionCardAction: (RunPermissionCardAction) -> Unit,
     onOpenRunDetails: (Long) -> Unit = {},
+    onOpenFeatureSettings: () -> Unit = {},
     onBack: () -> Unit = {},
 ) {
     val snapshot = remember(runs, isTracking) {
@@ -277,9 +301,23 @@ internal fun RunScreenContent(
                 title = { Text("Run", fontWeight = FontWeight.SemiBold, fontSize = 18.sp) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Text("←", color = MaterialTheme.colorScheme.onSurface, fontSize = 18.sp)
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = MaterialTheme.colorScheme.onSurface,
+                        )
                     }
                 },
+                actions = {
+                    IconButton(onClick = onOpenFeatureSettings) {
+                        Icon(
+                            imageVector = Icons.Filled.Settings,
+                            contentDescription = "Open run settings",
+                            tint = MaterialTheme.colorScheme.onSurface,
+                        )
+                    }
+                },
+                expandedHeight = 48.dp,
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = surface,
                     titleContentColor = MaterialTheme.colorScheme.onSurface,
@@ -418,47 +456,47 @@ private fun RunHeroRingCard(
     surface: Color,
     chipColor: Color,
 ) {
-    Card(
-        colors = CardDefaults.cardColors(containerColor = surface),
-        shape = RoundedCornerShape(28.dp),
+    val isDark = isSystemInDarkTheme()
+    val headlineSurface = if (isDark) surface.copy(alpha = 0.96f) else Color.White
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+        Card(
+            colors = CardDefaults.cardColors(containerColor = headlineSurface),
+            shape = RoundedCornerShape(999.dp),
         ) {
             Text(
-                "Today's run",
+                text = "Today's run - ${snapshot.statusLabel}",
+                modifier = Modifier.padding(horizontal = 18.dp, vertical = 10.dp),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
             )
-            Text(
-                snapshot.statusLabel,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+        }
+        RunProgressRing(
+            progress = snapshot.todayGoalProgress,
+            totalLabel = formatDistance(snapshot.todayDistanceMeters),
+            goalLabel = formatDistance(snapshot.dailyGoalMeters),
+            accent = accent,
+            track = track,
+            background = surface,
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            RunChip(
+                text = "This week ${formatDistance(snapshot.weeklyDistanceMeters)}",
+                background = chipColor,
+                color = tone,
             )
-            RunProgressRing(
-                progress = snapshot.todayGoalProgress,
-                totalLabel = formatDistance(snapshot.todayDistanceMeters),
-                goalLabel = formatDistance(snapshot.dailyGoalMeters),
-                accent = accent,
-                track = track,
-                background = surface,
+            RunChip(
+                text = "${snapshot.totalRuns} run${if (snapshot.totalRuns == 1) "" else "s"}",
+                background = chipColor,
+                color = tone,
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                RunChip(
-                    text = "This week ${formatDistance(snapshot.weeklyDistanceMeters)}",
-                    background = chipColor,
-                    color = tone,
-                )
-                RunChip(
-                    text = "${snapshot.totalRuns} run${if (snapshot.totalRuns == 1) "" else "s"}",
-                    background = chipColor,
-                    color = tone,
-                )
-            }
         }
     }
 }
@@ -488,8 +526,21 @@ private fun RunActionCard(
             modifier = Modifier.padding(18.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            Text("Run controls", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-            Text(snapshot.statusDetail, style = MaterialTheme.typography.bodyMedium)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Box(
+                    modifier = Modifier
+                        .size(12.dp)
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(stateAccent)
+                )
+                Text("Run controls", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                
+            }
+            Text(
+                snapshot.statusDetail,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -558,8 +609,17 @@ private fun RunPermissionCard(
             modifier = Modifier.padding(18.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-            Text(message, style = MaterialTheme.typography.bodyMedium)
+            Text(
+                title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                message,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Button(
                     onClick = onPrimary,
@@ -602,6 +662,7 @@ private fun RunLatestRouteCard(
                 if (latestRun?.endTime == null && latestRun != null) "Live route" else "Latest route",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
             )
 
             when {
@@ -609,6 +670,7 @@ private fun RunLatestRouteCard(
                     Text(
                         "Your most recent route will appear here once you log a run.",
                         style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
 
@@ -623,6 +685,7 @@ private fun RunLatestRouteCard(
                                 formatDistance(latestRun.distanceMeters),
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface,
                             )
                             Text(
                                 formatDuration(latestRun.durationSec),
@@ -640,6 +703,7 @@ private fun RunLatestRouteCard(
                     Text(
                         "Route points will appear once movement is captured.",
                         style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
 
@@ -654,6 +718,7 @@ private fun RunLatestRouteCard(
                                 formatDistance(latestRun.distanceMeters),
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface,
                             )
                             Text(
                                 formatDuration(latestRun.durationSec),
@@ -713,7 +778,12 @@ private fun RunMetricCard(
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(metric.title, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(metric.value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text(
+                metric.value,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
             Text(metric.subtitle, style = MaterialTheme.typography.bodySmall, color = accent)
         }
     }
@@ -741,8 +811,17 @@ private fun RunInsightsCard(
             modifier = Modifier.padding(18.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Text("Run insights", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-            Text(insight, style = MaterialTheme.typography.bodyMedium)
+            Text(
+                "Run insights",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                insight,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             Text(
                 "Scroll to review your latest route, summary metrics, and recent sessions in one place.",
                 style = MaterialTheme.typography.bodySmall,
@@ -796,6 +875,7 @@ private fun RunHistoryCard(
                         formatRunDate(run.startTime),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface,
                     )
                     Text(
                         formatRunTime(run.startTime),
@@ -840,6 +920,7 @@ private fun RunEmptyHistoryCard(surface: Color) {
             "No runs yet. When you finish your first route, it will appear here with quick stats and map context.",
             modifier = Modifier.padding(16.dp),
             style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }
@@ -936,7 +1017,12 @@ private fun RunProgressRing(
 private fun StatItem(label: String, value: String) {
     Column {
         Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        Text(
+            value,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
     }
 }
 

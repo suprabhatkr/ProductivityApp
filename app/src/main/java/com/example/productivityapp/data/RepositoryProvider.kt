@@ -1,11 +1,15 @@
 package com.example.productivityapp.data
 
 import android.content.Context
+import com.example.productivityapp.data.repository.AppThemeRepository
 import com.example.productivityapp.data.repository.RunRepository
 import com.example.productivityapp.data.repository.SleepRepository
 import com.example.productivityapp.data.repository.StepRepository
 import com.example.productivityapp.data.repository.UserProfileRepository
+import com.example.productivityapp.data.repository.WaterRepository
+import com.example.productivityapp.data.repository.impl.DataStoreAppThemeRepository
 import com.example.productivityapp.data.repository.impl.DataStoreUserProfileRepository
+import com.example.productivityapp.data.repository.impl.DataStoreWaterRepository
 import com.example.productivityapp.data.repository.impl.RoomRunRepository
 import com.example.productivityapp.data.repository.impl.RoomSleepRepository
 import com.example.productivityapp.data.repository.impl.RoomStepRepository
@@ -22,6 +26,9 @@ import com.example.productivityapp.run.RunReplayExporter
 object RepositoryProvider {
     private const val ENABLE_SECURE_PROFILE_MIGRATION = true
     private const val ENABLE_SECURE_PROFILE_CUTOVER = true
+
+    @Volatile
+    private var appThemeRepository: AppThemeRepository? = null
 
     @Volatile
     private var userProfileRepository: UserProfileRepository? = null
@@ -50,6 +57,27 @@ object RepositoryProvider {
     fun provideSleepRepository(context: Context): SleepRepository {
         val db = DatabaseProvider.getInstance(context)
         return RoomSleepRepository(db.sleepDao())
+    }
+
+    fun provideWaterRepository(context: Context): WaterRepository {
+        val appContext = context.applicationContext
+        return DataStoreWaterRepository(
+            dataStore = UserDataStore(appContext),
+            userProfileRepository = provideUserProfileRepository(appContext),
+        )
+    }
+
+    fun provideAppThemeRepository(context: Context): AppThemeRepository {
+        appThemeRepository?.let { return it }
+
+        return synchronized(this) {
+            appThemeRepository?.let { return@synchronized it }
+
+            val appContext = context.applicationContext
+            DataStoreAppThemeRepository(
+                dataStore = UserDataStore(appContext),
+            ).also { appThemeRepository = it }
+        }
     }
 
     fun provideUserProfileRepository(context: Context): UserProfileRepository {

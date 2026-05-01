@@ -11,6 +11,8 @@ class UserProfileProto private constructor(
     private val displayNameValue: String?,
     private val weightKgValue: Double?,
     private val heightCmValue: Int?,
+    private val ageYearsValue: Int?,
+    private val genderValue: String?,
     val strideLengthMeters: Double,
     val preferredUnits: String,
     val dailyStepGoal: Int,
@@ -33,11 +35,21 @@ class UserProfileProto private constructor(
     val heightCm: Int
         get() = heightCmValue ?: 0
 
+    val ageYears: Int
+        get() = ageYearsValue ?: 0
+
+    val gender: String
+        get() = genderValue.orEmpty()
+
     fun hasDisplayName(): Boolean = displayNameValue != null
 
     fun hasWeightKg(): Boolean = weightKgValue != null
 
     fun hasHeightCm(): Boolean = heightCmValue != null
+
+    fun hasAgeYears(): Boolean = ageYearsValue != null
+
+    fun hasGender(): Boolean = genderValue != null
 
     fun writeTo(output: OutputStream) {
         val codedOutput = CodedOutputStream.newInstance(output)
@@ -49,6 +61,12 @@ class UserProfileProto private constructor(
         }
         heightCmValue?.let {
             codedOutput.writeInt32(3, it)
+        }
+        ageYearsValue?.let {
+            codedOutput.writeInt32(16, it)
+        }
+        genderValue?.let {
+            codedOutput.writeString(17, it)
         }
         codedOutput.writeDouble(4, strideLengthMeters)
         codedOutput.writeString(5, preferredUnits)
@@ -70,6 +88,8 @@ class UserProfileProto private constructor(
             displayNameValue?.let(::setDisplayName)
             weightKgValue?.let(::setWeightKg)
             heightCmValue?.let(::setHeightCm)
+            ageYearsValue?.let(::setAgeYears)
+            genderValue?.let(::setGender)
             setStrideLengthMeters(strideLengthMeters)
             setPreferredUnits(preferredUnits)
             setDailyStepGoal(dailyStepGoal)
@@ -88,6 +108,8 @@ class UserProfileProto private constructor(
         private var displayName: String? = null
         private var weightKg: Double? = null
         private var heightCm: Int? = null
+        private var ageYears: Int? = null
+        private var gender: String? = null
         private var strideLengthMeters: Double = 0.0
         private var preferredUnits: String = ""
         private var dailyStepGoal: Int = 0
@@ -112,6 +134,14 @@ class UserProfileProto private constructor(
         fun setHeightCm(value: Int) = apply { heightCm = value }
 
         fun clearHeightCm() = apply { heightCm = null }
+
+        fun setAgeYears(value: Int) = apply { ageYears = value }
+
+        fun clearAgeYears() = apply { ageYears = null }
+
+        fun setGender(value: String) = apply { gender = value }
+
+        fun clearGender() = apply { gender = null }
 
         fun setStrideLengthMeters(value: Double) = apply { strideLengthMeters = value }
 
@@ -141,6 +171,8 @@ class UserProfileProto private constructor(
             displayNameValue = displayName,
             weightKgValue = weightKg,
             heightCmValue = heightCm,
+            ageYearsValue = ageYears,
+            genderValue = gender,
             strideLengthMeters = strideLengthMeters,
             preferredUnits = preferredUnits,
             dailyStepGoal = dailyStepGoal,
@@ -173,6 +205,8 @@ class UserProfileProto private constructor(
                         10 -> builder.setDisplayName(codedInput.readString())
                         17 -> builder.setWeightKg(codedInput.readDouble())
                         24 -> builder.setHeightCm(codedInput.readInt32())
+                        128 -> builder.setAgeYears(codedInput.readInt32())
+                        138 -> builder.setGender(codedInput.readString())
                         33 -> builder.setStrideLengthMeters(codedInput.readDouble())
                         42 -> builder.setPreferredUnits(codedInput.readString())
                         48 -> builder.setDailyStepGoal(codedInput.readInt32())
