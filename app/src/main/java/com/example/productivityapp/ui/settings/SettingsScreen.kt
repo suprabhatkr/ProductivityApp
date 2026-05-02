@@ -1,27 +1,19 @@
 package com.example.productivityapp.ui.settings
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.DirectionsRun
 import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Hotel
 import androidx.compose.material.icons.filled.PersonOutline
 import androidx.compose.material.icons.filled.Security
@@ -36,18 +28,14 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.SecondaryScrollableTabRow
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -56,17 +44,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
-import com.example.productivityapp.data.model.AvatarConfig
-import com.example.productivityapp.data.model.AvatarGlassesStyle
-import com.example.productivityapp.data.model.AvatarHairStyle
-import com.example.productivityapp.data.model.AvatarHatStyle
-import com.example.productivityapp.data.model.AvatarPresentation
-import com.example.productivityapp.data.model.AvatarSkinTone
-import com.example.productivityapp.ui.avatar.AvatarPreview
-import com.example.productivityapp.ui.avatar.AvatarSkinToneOptionCard
-import com.example.productivityapp.ui.avatar.AvatarTraitOptionCard
+import com.example.productivityapp.data.model.AvatarPickerFilter
+import com.example.productivityapp.ui.avatar.AvatarPickerDialog
 import com.example.productivityapp.viewmodel.SettingsUiState
 import com.example.productivityapp.viewmodel.SettingsViewModel
 
@@ -119,12 +98,8 @@ fun SettingsScreen(
         onOpenAvatarEditor = viewModel::openAvatarEditor,
         onDismissAvatarEditor = viewModel::dismissAvatarEditor,
         onApplyAvatarDraft = viewModel::applyAvatarDraft,
-        onResetAvatarDraftToSaved = viewModel::resetAvatarDraftToSaved,
-        onAvatarSkinToneChanged = viewModel::updateAvatarSkinTone,
-        onAvatarPresentationChanged = viewModel::updateAvatarPresentation,
-        onAvatarHairStyleChanged = viewModel::updateAvatarHairStyle,
-        onAvatarGlassesStyleChanged = viewModel::updateAvatarGlassesStyle,
-        onAvatarHatStyleChanged = viewModel::updateAvatarHatStyle,
+        onAvatarFilterChanged = viewModel::updateAvatarFilter,
+        onAvatarSelected = viewModel::updateSelectedAvatar,
         onReset = viewModel::resetSettings,
         onSave = { viewModel.saveSettings() },
     )
@@ -151,12 +126,8 @@ fun SettingsScreenContent(
     onOpenAvatarEditor: () -> Unit,
     onDismissAvatarEditor: () -> Unit,
     onApplyAvatarDraft: () -> Unit,
-    onResetAvatarDraftToSaved: () -> Unit,
-    onAvatarSkinToneChanged: (AvatarSkinTone) -> Unit,
-    onAvatarPresentationChanged: (AvatarPresentation) -> Unit,
-    onAvatarHairStyleChanged: (AvatarHairStyle) -> Unit,
-    onAvatarGlassesStyleChanged: (AvatarGlassesStyle) -> Unit,
-    onAvatarHatStyleChanged: (AvatarHatStyle) -> Unit,
+    onAvatarFilterChanged: (AvatarPickerFilter) -> Unit,
+    onAvatarSelected: (String) -> Unit,
     onReset: () -> Unit,
     onSave: () -> Unit,
 ) {
@@ -335,250 +306,16 @@ fun SettingsScreenContent(
         }
 
         if (uiState.avatarEditor.isVisible) {
-            AvatarEditorDialog(
+            AvatarPickerDialog(
                 draft = uiState.avatarEditor.draft,
+                selectedFilter = uiState.avatarEditor.selectedFilter,
                 onDismiss = onDismissAvatarEditor,
                 onApply = onApplyAvatarDraft,
-                onReset = onResetAvatarDraftToSaved,
-                onSkinToneChanged = onAvatarSkinToneChanged,
-                onPresentationChanged = onAvatarPresentationChanged,
-                onHairStyleChanged = onAvatarHairStyleChanged,
-                onGlassesStyleChanged = onAvatarGlassesStyleChanged,
-                onHatStyleChanged = onAvatarHatStyleChanged,
+                onFilterChanged = onAvatarFilterChanged,
+                onAvatarSelected = onAvatarSelected,
             )
         }
     }
-}
-
-private enum class AvatarEditorTab(val label: String) {
-    SKIN("Skin"),
-    LOOK("Look"),
-    HAIR("Hair"),
-    GLASSES("Glasses"),
-    HATS("Hats"),
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun AvatarEditorDialog(
-    draft: AvatarConfig,
-    onDismiss: () -> Unit,
-    onApply: () -> Unit,
-    onReset: () -> Unit,
-    onSkinToneChanged: (AvatarSkinTone) -> Unit,
-    onPresentationChanged: (AvatarPresentation) -> Unit,
-    onHairStyleChanged: (AvatarHairStyle) -> Unit,
-    onGlassesStyleChanged: (AvatarGlassesStyle) -> Unit,
-    onHatStyleChanged: (AvatarHatStyle) -> Unit,
-) {
-    val selectedTab = remember { mutableStateOf(AvatarEditorTab.SKIN) }
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false),
-    ) {
-        Surface(
-            modifier = Modifier.fillMaxSize(),
-            color = MaterialTheme.colorScheme.surface,
-        ) {
-            Scaffold(
-                topBar = {
-                    TopAppBar(
-                        title = { Text("Edit avatar", fontWeight = FontWeight.SemiBold) },
-                        navigationIcon = {
-                            IconButton(
-                                onClick = onDismiss,
-                                modifier = Modifier.semantics { contentDescription = "Close avatar editor" },
-                            ) {
-                                Icon(Icons.Filled.Close, contentDescription = null)
-                            }
-                        },
-                        actions = {
-                            IconButton(
-                                onClick = {
-                                    onApply()
-                                },
-                                modifier = Modifier.semantics { contentDescription = "Apply avatar changes" },
-                            ) {
-                                Icon(Icons.Filled.Check, contentDescription = null)
-                            }
-                        },
-                    )
-                },
-                containerColor = MaterialTheme.colorScheme.surface,
-            ) { innerPadding ->
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(innerPadding),
-                ) {
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                        shape = androidx.compose.foundation.shape.RoundedCornerShape(28.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f)),
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(20.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(12.dp),
-                        ) {
-                            AvatarPreview(
-                                avatar = draft,
-                                size = 156.dp,
-                                contentDescription = "Avatar editor live preview",
-                            )
-                            Text(
-                                text = "Mix skin tone, look, hair, glasses, and hats with a live preview.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                            OutlinedButton(
-                                onClick = onReset,
-                                modifier = Modifier.semantics { contentDescription = "Reset avatar draft" },
-                            ) {
-                                Text("Reset draft")
-                            }
-                        }
-                    }
-                    SecondaryScrollableTabRow(
-                        selectedTabIndex = selectedTab.value.ordinal,
-                    ) {
-                        AvatarEditorTab.entries.forEachIndexed { index, tab ->
-                            Tab(
-                                selected = selectedTab.value.ordinal == index,
-                                onClick = { selectedTab.value = tab },
-                                text = { Text(tab.label) },
-                            )
-                        }
-                    }
-                    when (selectedTab.value) {
-                        AvatarEditorTab.SKIN -> AvatarGrid {
-                            items(AvatarSkinTone.entries.size) { index ->
-                                val option = AvatarSkinTone.entries[index]
-                                AvatarSkinToneOptionCard(
-                                    skinTone = option,
-                                    selected = draft.skinTone == option,
-                                    onClick = { onSkinToneChanged(option) },
-                                    modifier = Modifier.fillMaxWidth(),
-                                )
-                            }
-                        }
-
-                        AvatarEditorTab.LOOK -> AvatarGrid {
-                            items(AvatarPresentation.entries.size) { index ->
-                                val option = AvatarPresentation.entries[index]
-                                AvatarTraitOptionCard(
-                                    label = option.label,
-                                    selected = draft.presentation == option,
-                                    onClick = { onPresentationChanged(option) },
-                                    modifier = Modifier.fillMaxWidth(),
-                                ) {
-                                    AvatarPreview(
-                                        avatar = draft.copy(presentation = option),
-                                        size = 56.dp,
-                                        contentDescription = null,
-                                    )
-                                }
-                            }
-                        }
-
-                        AvatarEditorTab.HAIR -> AvatarGrid {
-                            items(AvatarHairStyle.entries.size) { index ->
-                                val option = AvatarHairStyle.entries[index]
-                                AvatarTraitOptionCard(
-                                    label = option.label,
-                                    selected = draft.hairStyle == option,
-                                    onClick = { onHairStyleChanged(option) },
-                                    modifier = Modifier.fillMaxWidth(),
-                                ) {
-                                    AvatarPreview(
-                                        avatar = draft.copy(hairStyle = option),
-                                        size = 56.dp,
-                                        contentDescription = null,
-                                    )
-                                }
-                            }
-                        }
-
-                        AvatarEditorTab.GLASSES -> AvatarGrid {
-                            items(AvatarGlassesStyle.entries.size) { index ->
-                                val option = AvatarGlassesStyle.entries[index]
-                                AvatarTraitOptionCard(
-                                    label = option.label,
-                                    selected = draft.glassesStyle == option,
-                                    onClick = { onGlassesStyleChanged(option) },
-                                    modifier = Modifier.fillMaxWidth(),
-                                ) {
-                                    AvatarPreview(
-                                        avatar = draft.copy(glassesStyle = option),
-                                        size = 56.dp,
-                                        contentDescription = null,
-                                    )
-                                }
-                            }
-                        }
-
-                        AvatarEditorTab.HATS -> AvatarGrid {
-                            items(AvatarHatStyle.entries.size) { index ->
-                                val option = AvatarHatStyle.entries[index]
-                                AvatarTraitOptionCard(
-                                    label = option.label,
-                                    selected = draft.hatStyle == option,
-                                    onClick = { onHatStyleChanged(option) },
-                                    modifier = Modifier.fillMaxWidth(),
-                                ) {
-                                    AvatarPreview(
-                                        avatar = draft.copy(hatStyle = option),
-                                        size = 56.dp,
-                                        contentDescription = null,
-                                    )
-                                }
-                            }
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        OutlinedButton(
-                            onClick = onDismiss,
-                            modifier = Modifier.weight(1f),
-                        ) {
-                            Text("Cancel")
-                        }
-                        Button(
-                            onClick = onApply,
-                            modifier = Modifier
-                                .weight(1f)
-                                .semantics { contentDescription = "Apply avatar changes button" },
-                        ) {
-                            Text("Apply")
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ColumnScope.AvatarGrid(
-    content: androidx.compose.foundation.lazy.grid.LazyGridScope.() -> Unit,
-) {
-    LazyVerticalGrid(
-        columns = GridCells.Adaptive(minSize = 148.dp),
-        modifier = Modifier
-            .fillMaxWidth()
-            .weight(1f, fill = false)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-        content = content,
-    )
 }
 
 @Composable

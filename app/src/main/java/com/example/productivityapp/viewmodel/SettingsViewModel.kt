@@ -3,12 +3,10 @@ package com.example.productivityapp.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.productivityapp.data.model.AppThemePreference
+import com.example.productivityapp.data.model.AvatarCategory
 import com.example.productivityapp.data.model.AvatarConfig
-import com.example.productivityapp.data.model.AvatarGlassesStyle
-import com.example.productivityapp.data.model.AvatarHairStyle
-import com.example.productivityapp.data.model.AvatarHatStyle
-import com.example.productivityapp.data.model.AvatarPresentation
-import com.example.productivityapp.data.model.AvatarSkinTone
+import com.example.productivityapp.data.model.AvatarDefaults
+import com.example.productivityapp.data.model.AvatarPickerFilter
 import com.example.productivityapp.data.model.UserProfile
 import com.example.productivityapp.data.repository.AppThemeRepository
 import com.example.productivityapp.data.repository.UserProfileRepository
@@ -39,6 +37,7 @@ data class ProfileSettingsSectionState(
 data class AvatarEditorState(
     val isVisible: Boolean = false,
     val draft: AvatarConfig = AvatarConfig(),
+    val selectedFilter: AvatarPickerFilter = AvatarPickerFilter.CREATURE,
 )
 
 data class AppearanceSettingsSectionState(
@@ -232,10 +231,12 @@ class SettingsViewModel(
     }
 
     fun openAvatarEditor() = updateField {
+        val currentAvatar = profile.avatar
         copy(
             avatarEditor = AvatarEditorState(
                 isVisible = true,
-                draft = profile.avatar,
+                draft = currentAvatar,
+                selectedFilter = currentAvatar.defaultPickerFilter(),
             ),
             message = null,
         )
@@ -246,6 +247,7 @@ class SettingsViewModel(
             avatarEditor = avatarEditor.copy(
                 isVisible = false,
                 draft = profile.avatar,
+                selectedFilter = profile.avatar.defaultPickerFilter(),
             ),
             message = null,
         )
@@ -253,20 +255,24 @@ class SettingsViewModel(
 
     fun resetAvatarDraftToSaved() = updateField {
         copy(
-            avatarEditor = avatarEditor.copy(draft = profile.avatar),
+            avatarEditor = avatarEditor.copy(
+                draft = profile.avatar,
+                selectedFilter = profile.avatar.defaultPickerFilter(),
+            ),
             message = null,
         )
     }
 
-    fun updateAvatarSkinTone(value: AvatarSkinTone) = updateAvatarDraft { copy(skinTone = value) }
+    fun updateAvatarFilter(value: AvatarPickerFilter) = updateField {
+        copy(
+            avatarEditor = avatarEditor.copy(selectedFilter = value),
+            message = null,
+        )
+    }
 
-    fun updateAvatarPresentation(value: AvatarPresentation) = updateAvatarDraft { copy(presentation = value) }
-
-    fun updateAvatarHairStyle(value: AvatarHairStyle) = updateAvatarDraft { copy(hairStyle = value) }
-
-    fun updateAvatarGlassesStyle(value: AvatarGlassesStyle) = updateAvatarDraft { copy(glassesStyle = value) }
-
-    fun updateAvatarHatStyle(value: AvatarHatStyle) = updateAvatarDraft { copy(hatStyle = value) }
+    fun updateSelectedAvatar(value: String) = updateAvatarDraft {
+        copy(avatarId = AvatarDefaults.normalizeAvatarId(value))
+    }
 
     fun applyAvatarDraft() = updateField {
         val updatedAvatar = avatarEditor.draft
@@ -363,6 +369,7 @@ class SettingsViewModel(
             avatarEditor = AvatarEditorState(
                 isVisible = false,
                 draft = profile.avatar,
+                selectedFilter = profile.avatar.defaultPickerFilter(),
             ),
         )
     }
@@ -533,6 +540,12 @@ class SettingsViewModel(
             themePreference = state.appearance.themePreference,
         )
     }
+}
+
+private fun AvatarConfig.defaultPickerFilter(): AvatarPickerFilter = when (category) {
+    AvatarCategory.MALE -> AvatarPickerFilter.MALE
+    AvatarCategory.FEMALE -> AvatarPickerFilter.FEMALE
+    AvatarCategory.CREATURE -> AvatarPickerFilter.CREATURE
 }
 
 private fun String.normalizeDecimalInput(): String {

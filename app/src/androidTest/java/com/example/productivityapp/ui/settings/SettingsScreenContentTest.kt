@@ -10,8 +10,8 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import com.example.productivityapp.data.model.AvatarGlassesStyle
-import com.example.productivityapp.data.model.AvatarHatStyle
+import com.example.productivityapp.data.model.AvatarConfig
+import com.example.productivityapp.data.model.AvatarPickerFilter
 import com.example.productivityapp.viewmodel.AvatarEditorState
 import com.example.productivityapp.viewmodel.ProfileSettingsSectionState
 import com.example.productivityapp.viewmodel.RunSettingsSectionState
@@ -51,12 +51,8 @@ class SettingsScreenContentTest {
                     onOpenAvatarEditor = {},
                     onDismissAvatarEditor = {},
                     onApplyAvatarDraft = {},
-                    onResetAvatarDraftToSaved = {},
-                    onAvatarSkinToneChanged = {},
-                    onAvatarPresentationChanged = {},
-                    onAvatarHairStyleChanged = {},
-                    onAvatarGlassesStyleChanged = {},
-                    onAvatarHatStyleChanged = {},
+                    onAvatarFilterChanged = {},
+                    onAvatarSelected = {},
                     onReset = {},
                     onSave = {},
                 )
@@ -99,12 +95,8 @@ class SettingsScreenContentTest {
                     onOpenAvatarEditor = {},
                     onDismissAvatarEditor = {},
                     onApplyAvatarDraft = {},
-                    onResetAvatarDraftToSaved = {},
-                    onAvatarSkinToneChanged = {},
-                    onAvatarPresentationChanged = {},
-                    onAvatarHairStyleChanged = {},
-                    onAvatarGlassesStyleChanged = {},
-                    onAvatarHatStyleChanged = {},
+                    onAvatarFilterChanged = {},
+                    onAvatarSelected = {},
                     onReset = {},
                     onSave = { savePressed = true },
                 )
@@ -121,7 +113,7 @@ class SettingsScreenContentTest {
     }
 
     @Test
-    fun settingsScreen_avatarEditorOpenApplyAndCancelFlowWorks() {
+    fun settingsScreen_avatarPickerOpenApplyAndCancelFlowWorks() {
         composeRule.setContent {
             var state by mutableStateOf(sampleSettingsUiState())
             MaterialTheme {
@@ -146,6 +138,7 @@ class SettingsScreenContentTest {
                             avatarEditor = AvatarEditorState(
                                 isVisible = true,
                                 draft = state.profile.avatar,
+                                selectedFilter = AvatarPickerFilter.CREATURE,
                             )
                         )
                     },
@@ -154,6 +147,7 @@ class SettingsScreenContentTest {
                             avatarEditor = state.avatarEditor.copy(
                                 isVisible = false,
                                 draft = state.profile.avatar,
+                                selectedFilter = AvatarPickerFilter.CREATURE,
                             )
                         )
                     },
@@ -163,25 +157,15 @@ class SettingsScreenContentTest {
                             avatarEditor = state.avatarEditor.copy(isVisible = false),
                         )
                     },
-                    onResetAvatarDraftToSaved = {
+                    onAvatarFilterChanged = {
                         state = state.copy(
-                            avatarEditor = state.avatarEditor.copy(draft = state.profile.avatar),
+                            avatarEditor = state.avatarEditor.copy(selectedFilter = it),
                         )
                     },
-                    onAvatarSkinToneChanged = {},
-                    onAvatarPresentationChanged = {},
-                    onAvatarHairStyleChanged = {},
-                    onAvatarGlassesStyleChanged = {
+                    onAvatarSelected = {
                         state = state.copy(
                             avatarEditor = state.avatarEditor.copy(
-                                draft = state.avatarEditor.draft.copy(glassesStyle = it),
-                            )
-                        )
-                    },
-                    onAvatarHatStyleChanged = {
-                        state = state.copy(
-                            avatarEditor = state.avatarEditor.copy(
-                                draft = state.avatarEditor.draft.copy(hatStyle = it),
+                                draft = state.avatarEditor.draft.copy(avatarId = it),
                             )
                         )
                     },
@@ -191,126 +175,21 @@ class SettingsScreenContentTest {
             }
         }
 
-        composeRule.onNodeWithContentDescription("Edit avatar").assertIsDisplayed().performClick()
-        composeRule.onNodeWithText("Edit avatar").assertIsDisplayed()
-        composeRule.onNodeWithText("Bold Frame").performClick()
-        composeRule.onNodeWithText("Beanie").performClick()
+        composeRule.onNodeWithContentDescription("Choose avatar").assertIsDisplayed().performClick()
+        composeRule.onNodeWithText("Choose avatar").assertIsDisplayed()
+        composeRule.onNodeWithText("Female").performClick()
+        composeRule.onNodeWithText("Female 1").performClick()
         composeRule.onNodeWithText("Apply").performClick()
         composeRule.onNodeWithContentDescription(
-            "Avatar preview, Medium skin, neutral look, short hair, bold frame glasses, beanie hat",
+            "Avatar preview, Female 1, female style",
         ).assertIsDisplayed()
 
-        composeRule.onNodeWithContentDescription("Edit avatar").performClick()
-        composeRule.onNodeWithText("Sun Hat").performClick()
+        composeRule.onNodeWithContentDescription("Choose avatar").performClick()
+        composeRule.onNodeWithText("Male").performClick()
+        composeRule.onNodeWithText("Male 2").performClick()
         composeRule.onNodeWithText("Cancel").performClick()
         composeRule.onNodeWithContentDescription(
-            "Avatar preview, Medium skin, neutral look, short hair, bold frame glasses, beanie hat",
-        ).assertIsDisplayed()
-    }
-
-    @Test
-    fun settingsScreen_avatarEditorTabSwitchAndResetFlowWorks() {
-        composeRule.setContent {
-            var state by mutableStateOf(sampleSettingsUiState())
-            MaterialTheme {
-                SettingsScreenContent(
-                    uiState = state,
-                    onBack = {},
-                    onDisplayNameChanged = {},
-                    onAgeChanged = {},
-                    onGenderChanged = {},
-                    onHeightChanged = {},
-                    onWeightChanged = {},
-                    onDailyStepGoalChanged = {},
-                    onStrideLengthChanged = {},
-                    onPreferredUnitsChanged = {},
-                    onDailyWaterGoalChanged = {},
-                    onNightlySleepGoalChanged = {},
-                    onTypicalBedtimeChanged = {},
-                    onTypicalWakeTimeChanged = {},
-                    onSleepDetectionBufferChanged = {},
-                    onOpenAvatarEditor = {
-                        state = state.copy(
-                            avatarEditor = AvatarEditorState(
-                                isVisible = true,
-                                draft = state.profile.avatar,
-                            )
-                        )
-                    },
-                    onDismissAvatarEditor = {
-                        state = state.copy(
-                            avatarEditor = state.avatarEditor.copy(
-                                isVisible = false,
-                                draft = state.profile.avatar,
-                            )
-                        )
-                    },
-                    onApplyAvatarDraft = {
-                        state = state.copy(
-                            profile = state.profile.copy(avatar = state.avatarEditor.draft),
-                            avatarEditor = state.avatarEditor.copy(isVisible = false),
-                        )
-                    },
-                    onResetAvatarDraftToSaved = {
-                        state = state.copy(
-                            avatarEditor = state.avatarEditor.copy(draft = state.profile.avatar),
-                        )
-                    },
-                    onAvatarSkinToneChanged = {
-                        state = state.copy(
-                            avatarEditor = state.avatarEditor.copy(
-                                draft = state.avatarEditor.draft.copy(skinTone = it),
-                            )
-                        )
-                    },
-                    onAvatarPresentationChanged = {
-                        state = state.copy(
-                            avatarEditor = state.avatarEditor.copy(
-                                draft = state.avatarEditor.draft.copy(presentation = it),
-                            )
-                        )
-                    },
-                    onAvatarHairStyleChanged = {
-                        state = state.copy(
-                            avatarEditor = state.avatarEditor.copy(
-                                draft = state.avatarEditor.draft.copy(hairStyle = it),
-                            )
-                        )
-                    },
-                    onAvatarGlassesStyleChanged = {
-                        state = state.copy(
-                            avatarEditor = state.avatarEditor.copy(
-                                draft = state.avatarEditor.draft.copy(glassesStyle = it),
-                            )
-                        )
-                    },
-                    onAvatarHatStyleChanged = {
-                        state = state.copy(
-                            avatarEditor = state.avatarEditor.copy(
-                                draft = state.avatarEditor.draft.copy(hatStyle = it),
-                            )
-                        )
-                    },
-                    onReset = {},
-                    onSave = {},
-                )
-            }
-        }
-
-        composeRule.onNodeWithContentDescription("Edit avatar").performClick()
-        composeRule.onNodeWithText("Hair").performClick()
-        composeRule.onNodeWithText("Bun").assertIsDisplayed().performClick()
-        composeRule.onNodeWithText("Look").performClick()
-        composeRule.onNodeWithText("Masculine").assertIsDisplayed().performClick()
-        composeRule.onNodeWithText("Skin").performClick()
-        composeRule.onNodeWithText("Dark").assertIsDisplayed().performClick()
-        composeRule.onNodeWithText("Hats").performClick()
-        composeRule.onNodeWithText("Sun Hat").assertIsDisplayed().performClick()
-        composeRule.onNodeWithContentDescription("Reset avatar draft").performClick()
-        composeRule.onNodeWithContentDescription("Apply avatar changes").performClick()
-
-        composeRule.onNodeWithContentDescription(
-            "Avatar preview, Medium skin, neutral look, short hair, none glasses, none hat",
+            "Avatar preview, Female 1, female style",
         ).assertIsDisplayed()
     }
 }
@@ -325,6 +204,7 @@ private fun sampleSettingsUiState(): SettingsUiState {
             gender = "Female",
             heightCm = "170",
             weightKg = "64.5",
+            avatar = AvatarConfig(avatarId = "creature_01"),
         ),
         steps = StepSettingsSectionState(
             dailyStepGoal = "9000",

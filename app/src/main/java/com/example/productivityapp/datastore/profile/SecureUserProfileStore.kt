@@ -18,7 +18,7 @@ data class SecureStoredUserProfile(
     val lastWriteEpochMs: Long = 0L,
 ) {
     companion object {
-        const val CURRENT_SCHEMA_VERSION = 4
+        const val CURRENT_SCHEMA_VERSION = 5
     }
 }
 

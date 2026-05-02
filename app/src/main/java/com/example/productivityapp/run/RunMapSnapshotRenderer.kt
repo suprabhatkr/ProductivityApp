@@ -12,6 +12,7 @@ import org.maplibre.android.geometry.LatLngBounds
 import org.maplibre.android.snapshotter.MapSnapshotter
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
+import androidx.core.graphics.drawable.toBitmap
 
 interface RunMapSnapshotRenderer {
     suspend fun renderFrame(
@@ -24,9 +25,31 @@ interface RunMapSnapshotRenderer {
 
 class MapLibreRunMapSnapshotRenderer(
     context: Context,
-    private val overlayRenderer: RunReplayOverlayRenderer = RunReplayOverlayRenderer(),
 ) : RunMapSnapshotRenderer {
     private val appContext = context.applicationContext
+    private val overlayRenderer: RunReplayOverlayRenderer
+
+    init {
+        // Load start/end drawable resources as bitmaps for crisp overlay icons
+        val startDrawable = androidx.core.content.ContextCompat.getDrawable(appContext, com.example.productivityapp.R.drawable.ic_replay_start)
+        val endDrawable = androidx.core.content.ContextCompat.getDrawable(appContext, com.example.productivityapp.R.drawable.ic_replay_end)
+
+        fun drawableToBitmap(drawable: android.graphics.drawable.Drawable?): android.graphics.Bitmap? {
+            drawable ?: return null
+            if (drawable is android.graphics.drawable.BitmapDrawable) return drawable.bitmap
+            val w = drawable.intrinsicWidth.takeIf { it > 0 } ?: 24
+            val h = drawable.intrinsicHeight.takeIf { it > 0 } ?: 24
+            val bmp = android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888)
+            val c = android.graphics.Canvas(bmp)
+            drawable.setBounds(0, 0, c.width, c.height)
+            drawable.draw(c)
+            return bmp
+        }
+
+        val startBmp = drawableToBitmap(startDrawable)
+        val endBmp = drawableToBitmap(endDrawable)
+        overlayRenderer = RunReplayOverlayRenderer(startIcon = startBmp, endIcon = endBmp)
+    }
 
     override suspend fun renderFrame(
         frame: RunReplayRenderedFrame,

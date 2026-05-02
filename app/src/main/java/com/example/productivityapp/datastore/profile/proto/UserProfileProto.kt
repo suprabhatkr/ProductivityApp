@@ -13,6 +13,7 @@ class UserProfileProto private constructor(
     private val heightCmValue: Int?,
     private val ageYearsValue: Int?,
     private val genderValue: String?,
+    private val avatarIdValue: String?,
     private val avatarSkinToneValue: String?,
     private val avatarPresentationValue: String?,
     private val avatarHairStyleValue: String?,
@@ -46,6 +47,9 @@ class UserProfileProto private constructor(
     val gender: String
         get() = genderValue.orEmpty()
 
+    val avatarId: String
+        get() = avatarIdValue.orEmpty()
+
     val avatarSkinTone: String
         get() = avatarSkinToneValue.orEmpty()
 
@@ -70,6 +74,8 @@ class UserProfileProto private constructor(
     fun hasAgeYears(): Boolean = ageYearsValue != null
 
     fun hasGender(): Boolean = genderValue != null
+
+    fun hasAvatarId(): Boolean = avatarIdValue != null
 
     fun hasAvatarSkinTone(): Boolean = avatarSkinToneValue != null
 
@@ -97,6 +103,9 @@ class UserProfileProto private constructor(
         }
         genderValue?.let {
             codedOutput.writeString(17, it)
+        }
+        avatarIdValue?.let {
+            codedOutput.writeString(23, it)
         }
         avatarSkinToneValue?.let {
             codedOutput.writeString(18, it)
@@ -135,6 +144,7 @@ class UserProfileProto private constructor(
             heightCmValue?.let(::setHeightCm)
             ageYearsValue?.let(::setAgeYears)
             genderValue?.let(::setGender)
+            avatarIdValue?.let(::setAvatarId)
             avatarSkinToneValue?.let(::setAvatarSkinTone)
             avatarPresentationValue?.let(::setAvatarPresentation)
             avatarHairStyleValue?.let(::setAvatarHairStyle)
@@ -160,6 +170,7 @@ class UserProfileProto private constructor(
         private var heightCm: Int? = null
         private var ageYears: Int? = null
         private var gender: String? = null
+        private var avatarId: String? = null
         private var avatarSkinTone: String? = null
         private var avatarPresentation: String? = null
         private var avatarHairStyle: String? = null
@@ -197,6 +208,10 @@ class UserProfileProto private constructor(
         fun setGender(value: String) = apply { gender = value }
 
         fun clearGender() = apply { gender = null }
+
+        fun setAvatarId(value: String) = apply { avatarId = value }
+
+        fun clearAvatarId() = apply { avatarId = null }
 
         fun setAvatarSkinTone(value: String) = apply { avatarSkinTone = value }
 
@@ -248,6 +263,7 @@ class UserProfileProto private constructor(
             heightCmValue = heightCm,
             ageYearsValue = ageYears,
             genderValue = gender,
+            avatarIdValue = avatarId,
             avatarSkinToneValue = avatarSkinTone,
             avatarPresentationValue = avatarPresentation,
             avatarHairStyleValue = avatarHairStyle,
@@ -287,6 +303,7 @@ class UserProfileProto private constructor(
                         24 -> builder.setHeightCm(codedInput.readInt32())
                         128 -> builder.setAgeYears(codedInput.readInt32())
                         138 -> builder.setGender(codedInput.readString())
+                        186 -> builder.setAvatarId(codedInput.readString())
                         146 -> builder.setAvatarSkinTone(codedInput.readString())
                         154 -> builder.setAvatarPresentation(codedInput.readString())
                         162 -> builder.setAvatarHairStyle(codedInput.readString())

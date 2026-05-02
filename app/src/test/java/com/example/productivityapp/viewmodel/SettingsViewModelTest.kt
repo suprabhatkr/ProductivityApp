@@ -2,11 +2,7 @@ package com.example.productivityapp.viewmodel
 
 import com.example.productivityapp.data.model.AppThemePreference
 import com.example.productivityapp.data.model.AvatarConfig
-import com.example.productivityapp.data.model.AvatarGlassesStyle
-import com.example.productivityapp.data.model.AvatarHairStyle
-import com.example.productivityapp.data.model.AvatarHatStyle
-import com.example.productivityapp.data.model.AvatarPresentation
-import com.example.productivityapp.data.model.AvatarSkinTone
+import com.example.productivityapp.data.model.AvatarPickerFilter
 import com.example.productivityapp.data.model.UserProfile
 import com.example.productivityapp.data.repository.AppThemeRepository
 import com.example.productivityapp.data.repository.UserProfileRepository
@@ -58,13 +54,7 @@ class SettingsViewModelTest {
                 sleepDetectionBufferMinutes = 45,
                 ageYears = 31,
                 gender = "Male",
-                avatar = AvatarConfig(
-                    skinTone = AvatarSkinTone.MEDIUM_DARK,
-                    presentation = AvatarPresentation.MASCULINE,
-                    hairStyle = AvatarHairStyle.SPIKY,
-                    glassesStyle = AvatarGlassesStyle.BOLD,
-                    hatStyle = AvatarHatStyle.CAP,
-                ),
+                avatar = AvatarConfig(avatarId = "male_07"),
             )
         )
         val themeRepository = FakeAppThemeRepository(AppThemePreference.DARK)
@@ -87,8 +77,9 @@ class SettingsViewModelTest {
         assertEquals("23:00", state.sleep.typicalBedtime)
         assertEquals("07:00", state.sleep.typicalWakeTime)
         assertEquals("45", state.sleep.sleepDetectionBufferMinutes)
-        assertEquals(AvatarHatStyle.CAP, state.profile.avatar.hatStyle)
-        assertEquals(AvatarHairStyle.SPIKY, state.avatarEditor.draft.hairStyle)
+        assertEquals("male_07", state.profile.avatar.avatarId)
+        assertEquals("male_07", state.avatarEditor.draft.avatarId)
+        assertEquals(AvatarPickerFilter.MALE, state.avatarEditor.selectedFilter)
         assertEquals(AppThemePreference.DARK, state.appearance.themePreference)
     }
 
@@ -114,11 +105,8 @@ class SettingsViewModelTest {
         viewModel.updateTypicalWakeTime("06:45")
         viewModel.updateSleepDetectionBufferMinutes("25")
         viewModel.openAvatarEditor()
-        viewModel.updateAvatarSkinTone(AvatarSkinTone.DARK)
-        viewModel.updateAvatarPresentation(AvatarPresentation.FEMININE)
-        viewModel.updateAvatarHairStyle(AvatarHairStyle.CURLY)
-        viewModel.updateAvatarGlassesStyle(AvatarGlassesStyle.ROUND)
-        viewModel.updateAvatarHatStyle(AvatarHatStyle.BEANIE)
+        viewModel.updateAvatarFilter(AvatarPickerFilter.FEMALE)
+        viewModel.updateSelectedAvatar("female_12")
         viewModel.applyAvatarDraft()
         viewModel.saveSettings()
         runCurrent()
@@ -136,16 +124,7 @@ class SettingsViewModelTest {
         assertEquals(22 * 60 + 15, profileRepository.profile.value.typicalBedtimeMinutes)
         assertEquals(6 * 60 + 45, profileRepository.profile.value.typicalWakeTimeMinutes)
         assertEquals(25, profileRepository.profile.value.sleepDetectionBufferMinutes)
-        assertEquals(
-            AvatarConfig(
-                skinTone = AvatarSkinTone.DARK,
-                presentation = AvatarPresentation.FEMININE,
-                hairStyle = AvatarHairStyle.CURLY,
-                glassesStyle = AvatarGlassesStyle.ROUND,
-                hatStyle = AvatarHatStyle.BEANIE,
-            ),
-            profileRepository.profile.value.avatar,
-        )
+        assertEquals("female_12", profileRepository.profile.value.avatar.avatarId)
         assertEquals(AppThemePreference.LIGHT, themeRepository.preference.value)
         assertFalse(viewModel.uiState.value.hasUnsavedChanges)
         assertEquals("Settings saved", viewModel.uiState.value.message)
@@ -245,13 +224,7 @@ class SettingsViewModelTest {
                 sleepDetectionBufferMinutes = 55,
                 ageYears = 34,
                 gender = "Non-binary",
-                avatar = AvatarConfig(
-                    skinTone = AvatarSkinTone.DARK,
-                    presentation = AvatarPresentation.FEMININE,
-                    hairStyle = AvatarHairStyle.LONG,
-                    glassesStyle = AvatarGlassesStyle.ROUND,
-                    hatStyle = AvatarHatStyle.SUN_HAT,
-                ),
+                avatar = AvatarConfig(avatarId = "female_03"),
             )
         )
         val themeRepository = FakeAppThemeRepository(AppThemePreference.DARK)
@@ -286,7 +259,7 @@ class SettingsViewModelTest {
             UserProfile(
                 displayName = "Alex",
                 ageYears = 30,
-                avatar = AvatarConfig(hairStyle = AvatarHairStyle.SHORT),
+                avatar = AvatarConfig(avatarId = "creature_01"),
             )
         )
         val themeRepository = FakeAppThemeRepository(AppThemePreference.SYSTEM)
@@ -294,13 +267,14 @@ class SettingsViewModelTest {
         runCurrent()
 
         viewModel.openAvatarEditor()
-        viewModel.updateAvatarHairStyle(AvatarHairStyle.BUN)
-        viewModel.updateAvatarHatStyle(AvatarHatStyle.BEANIE)
+        viewModel.updateAvatarFilter(AvatarPickerFilter.FEMALE)
+        viewModel.updateSelectedAvatar("female_09")
 
         assertFalse(viewModel.uiState.value.hasUnsavedChanges)
-        assertEquals(AvatarHairStyle.SHORT, viewModel.uiState.value.profile.avatar.hairStyle)
-        assertEquals(AvatarHairStyle.BUN, viewModel.uiState.value.avatarEditor.draft.hairStyle)
-        assertEquals(AvatarHatStyle.NONE, profileRepository.profile.value.avatar.hatStyle)
+        assertEquals("creature_01", viewModel.uiState.value.profile.avatar.avatarId)
+        assertEquals("female_09", viewModel.uiState.value.avatarEditor.draft.avatarId)
+        assertEquals(AvatarPickerFilter.FEMALE, viewModel.uiState.value.avatarEditor.selectedFilter)
+        assertEquals("creature_01", profileRepository.profile.value.avatar.avatarId)
     }
 
     @Test
@@ -309,7 +283,7 @@ class SettingsViewModelTest {
             UserProfile(
                 displayName = "Alex",
                 ageYears = 30,
-                avatar = AvatarConfig(glassesStyle = AvatarGlassesStyle.NONE),
+                avatar = AvatarConfig(avatarId = "male_02"),
             )
         )
         val themeRepository = FakeAppThemeRepository(AppThemePreference.SYSTEM)
@@ -317,70 +291,14 @@ class SettingsViewModelTest {
         runCurrent()
 
         viewModel.openAvatarEditor()
-        viewModel.updateAvatarGlassesStyle(AvatarGlassesStyle.BOLD)
+        viewModel.updateAvatarFilter(AvatarPickerFilter.CREATURE)
+        viewModel.updateSelectedAvatar("creature_05")
         viewModel.dismissAvatarEditor()
 
         assertFalse(viewModel.uiState.value.avatarEditor.isVisible)
-        assertEquals(AvatarGlassesStyle.NONE, viewModel.uiState.value.avatarEditor.draft.glassesStyle)
-        assertEquals(AvatarGlassesStyle.NONE, viewModel.uiState.value.profile.avatar.glassesStyle)
-    }
-
-    @Test
-    fun resetAvatarDraftToSaved_restoresSavedAvatarWithoutDirtyFlag() = runTest(dispatcher) {
-        val savedAvatar = AvatarConfig(
-            skinTone = AvatarSkinTone.MEDIUM_DARK,
-            presentation = AvatarPresentation.MASCULINE,
-            hairStyle = AvatarHairStyle.SPIKY,
-            glassesStyle = AvatarGlassesStyle.RECTANGULAR,
-            hatStyle = AvatarHatStyle.CAP,
-        )
-        val profileRepository = FakeUserProfileRepository(
-            UserProfile(
-                displayName = "Alex",
-                ageYears = 30,
-                avatar = savedAvatar,
-            )
-        )
-        val themeRepository = FakeAppThemeRepository(AppThemePreference.SYSTEM)
-        val viewModel = SettingsViewModel(profileRepository, themeRepository)
-        runCurrent()
-
-        viewModel.openAvatarEditor()
-        viewModel.updateAvatarHairStyle(AvatarHairStyle.BUN)
-        viewModel.updateAvatarHatStyle(AvatarHatStyle.SUN_HAT)
-        viewModel.resetAvatarDraftToSaved()
-
-        assertEquals(savedAvatar, viewModel.uiState.value.avatarEditor.draft)
-        assertEquals(savedAvatar, viewModel.uiState.value.profile.avatar)
-        assertFalse(viewModel.uiState.value.hasUnsavedChanges)
-    }
-
-    @Test
-    fun applyAvatarDraft_withoutChangesKeepsDirtyFlagFalse() = runTest(dispatcher) {
-        val savedAvatar = AvatarConfig(
-            skinTone = AvatarSkinTone.MEDIUM_LIGHT,
-            presentation = AvatarPresentation.NEUTRAL,
-            hairStyle = AvatarHairStyle.MEDIUM,
-            glassesStyle = AvatarGlassesStyle.ROUND,
-            hatStyle = AvatarHatStyle.NONE,
-        )
-        val profileRepository = FakeUserProfileRepository(
-            UserProfile(
-                displayName = "Alex",
-                ageYears = 30,
-                avatar = savedAvatar,
-            )
-        )
-        val themeRepository = FakeAppThemeRepository(AppThemePreference.SYSTEM)
-        val viewModel = SettingsViewModel(profileRepository, themeRepository)
-        runCurrent()
-
-        viewModel.openAvatarEditor()
-        viewModel.applyAvatarDraft()
-
-        assertFalse(viewModel.uiState.value.avatarEditor.isVisible)
-        assertEquals(savedAvatar, viewModel.uiState.value.profile.avatar)
-        assertFalse(viewModel.uiState.value.hasUnsavedChanges)
+        assertEquals("male_02", viewModel.uiState.value.avatarEditor.draft.avatarId)
+        assertEquals("male_02", viewModel.uiState.value.profile.avatar.avatarId)
+        assertEquals(AvatarPickerFilter.MALE, viewModel.uiState.value.avatarEditor.selectedFilter)
     }
 
     @Test
@@ -397,13 +315,12 @@ class SettingsViewModelTest {
         runCurrent()
 
         viewModel.openAvatarEditor()
-        viewModel.updateAvatarSkinTone(AvatarSkinTone.MEDIUM_LIGHT)
-        viewModel.updateAvatarPresentation(AvatarPresentation.FEMININE)
+        viewModel.updateAvatarFilter(AvatarPickerFilter.MALE)
+        viewModel.updateSelectedAvatar("male_15")
         viewModel.applyAvatarDraft()
 
         assertFalse(viewModel.uiState.value.avatarEditor.isVisible)
-        assertEquals(AvatarSkinTone.MEDIUM_LIGHT, viewModel.uiState.value.profile.avatar.skinTone)
-        assertEquals(AvatarPresentation.FEMININE, viewModel.uiState.value.profile.avatar.presentation)
+        assertEquals("male_15", viewModel.uiState.value.profile.avatar.avatarId)
         assertTrue(viewModel.uiState.value.hasUnsavedChanges)
         assertEquals(AvatarConfig(), profileRepository.profile.value.avatar)
     }

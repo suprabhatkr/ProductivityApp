@@ -1,11 +1,8 @@
 package com.example.productivityapp.datastore.profile
 
+import com.example.productivityapp.data.model.AvatarDefaults
 import com.example.productivityapp.data.model.AvatarConfig
-import com.example.productivityapp.data.model.AvatarGlassesStyle
-import com.example.productivityapp.data.model.AvatarHairStyle
-import com.example.productivityapp.data.model.AvatarHatStyle
 import com.example.productivityapp.data.model.AvatarPresentation
-import com.example.productivityapp.data.model.AvatarSkinTone
 import com.example.productivityapp.data.model.UserProfile
 import com.example.productivityapp.datastore.profile.proto.MigrationStateProto
 import com.example.productivityapp.datastore.profile.proto.UserProfileProto
@@ -77,11 +74,12 @@ private fun UserProfileProto.toUserProfile(): UserProfile {
         ageYears = ageYears.takeIf { hasAgeYears() && it in 1..120 },
         gender = gender.takeIf { hasGender() && it.isNotBlank() },
         avatar = AvatarConfig(
-            skinTone = AvatarSkinTone.fromStorageValue(avatarSkinTone.takeIf { hasAvatarSkinTone() }),
-            presentation = AvatarPresentation.fromStorageValue(avatarPresentation.takeIf { hasAvatarPresentation() }),
-            hairStyle = AvatarHairStyle.fromStorageValue(avatarHairStyle.takeIf { hasAvatarHairStyle() }),
-            glassesStyle = AvatarGlassesStyle.fromStorageValue(avatarGlassesStyle.takeIf { hasAvatarGlassesStyle() }),
-            hatStyle = AvatarHatStyle.fromStorageValue(avatarHatStyle.takeIf { hasAvatarHatStyle() }),
+            avatarId = when {
+                hasAvatarId() -> AvatarDefaults.normalizeAvatarId(avatarId)
+                else -> AvatarDefaults.fallbackIdForLegacyPresentation(
+                    AvatarPresentation.fromStorageValue(avatarPresentation.takeIf { hasAvatarPresentation() })
+                )
+            },
         ),
     )
 }
@@ -95,11 +93,12 @@ private fun UserProfileProto.Builder.applyUserProfile(profile: UserProfile): Use
     setTypicalBedtimeMinutes(profile.typicalBedtimeMinutes)
     setTypicalWakeTimeMinutes(profile.typicalWakeTimeMinutes)
     setSleepDetectionBufferMinutes(profile.sleepDetectionBufferMinutes)
-    setAvatarSkinTone(profile.avatar.skinTone.storageValue)
-    setAvatarPresentation(profile.avatar.presentation.storageValue)
-    setAvatarHairStyle(profile.avatar.hairStyle.storageValue)
-    setAvatarGlassesStyle(profile.avatar.glassesStyle.storageValue)
-    setAvatarHatStyle(profile.avatar.hatStyle.storageValue)
+    setAvatarId(AvatarDefaults.normalizeAvatarId(profile.avatar.avatarId))
+    clearAvatarSkinTone()
+    clearAvatarPresentation()
+    clearAvatarHairStyle()
+    clearAvatarGlassesStyle()
+    clearAvatarHatStyle()
 
     profile.displayName?.takeIf { it.isNotBlank() }?.let(::setDisplayName) ?: clearDisplayName()
     profile.weightKg?.let(::setWeightKg) ?: clearWeightKg()

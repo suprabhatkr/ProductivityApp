@@ -6,23 +6,17 @@ import org.junit.Test
 class AvatarConfigTest {
 
     @Test
-    fun avatarConfig_defaultsMatchPlannedBaseline() {
+    fun avatarConfig_defaultsToCreatureStarterAvatar() {
         val config = AvatarConfig()
 
-        assertEquals(AvatarSkinTone.MEDIUM, config.skinTone)
-        assertEquals(AvatarPresentation.NEUTRAL, config.presentation)
-        assertEquals(AvatarHairStyle.SHORT, config.hairStyle)
-        assertEquals(AvatarGlassesStyle.NONE, config.glassesStyle)
-        assertEquals(AvatarHatStyle.NONE, config.hatStyle)
+        assertEquals(AvatarDefaults.DEFAULT_AVATAR_ID, config.avatarId)
+        assertEquals(AvatarCategory.CREATURE, config.category)
     }
 
     @Test
-    fun avatarEnums_fallBackToStableDefaultsForUnknownStorageValues() {
-        assertEquals(AvatarSkinTone.MEDIUM, AvatarSkinTone.fromStorageValue("unknown"))
-        assertEquals(AvatarPresentation.NEUTRAL, AvatarPresentation.fromStorageValue("unknown"))
-        assertEquals(AvatarHairStyle.SHORT, AvatarHairStyle.fromStorageValue("unknown"))
-        assertEquals(AvatarGlassesStyle.NONE, AvatarGlassesStyle.fromStorageValue("unknown"))
-        assertEquals(AvatarHatStyle.NONE, AvatarHatStyle.fromStorageValue("unknown"))
+    fun avatarDefaults_normalizeUnknownIdsToDefaultCreature() {
+        assertEquals(AvatarDefaults.DEFAULT_AVATAR_ID, AvatarDefaults.normalizeAvatarId("unknown"))
+        assertEquals(AvatarCategory.CREATURE, AvatarDefaults.categoryForAvatarId("unknown"))
     }
 
     @Test

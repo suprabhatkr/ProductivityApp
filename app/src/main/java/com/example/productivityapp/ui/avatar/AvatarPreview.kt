@@ -1,5 +1,7 @@
 package com.example.productivityapp.ui.avatar
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -23,22 +25,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.layout.BoxScope
-import androidx.compose.foundation.shape.GenericShape
-import androidx.compose.ui.semantics.Role
 import com.example.productivityapp.data.model.AvatarConfig
-import com.example.productivityapp.data.model.AvatarSkinTone
 
 @Composable
 fun AvatarPreview(
@@ -50,11 +47,13 @@ fun AvatarPreview(
     contentDescription: String? = avatarContentDescription(avatar),
     onClick: (() -> Unit)? = null,
 ) {
+    val option = AvatarAssetCatalog.optionFor(avatar)
     val clickableModifier = if (onClick != null) {
         Modifier.clickable(onClick = onClick)
     } else {
         Modifier
     }
+
     Box(
         modifier = modifier
             .then(
@@ -71,61 +70,25 @@ fun AvatarPreview(
             .size(size)
             .clip(CircleShape)
             .background(containerColor)
-            .border(width = 1.dp, color = borderColor, shape = CircleShape)
-            .padding((size * 0.08f).coerceAtLeast(6.dp)),
+            .border(width = 1.dp, color = borderColor, shape = CircleShape),
         contentAlignment = Alignment.Center,
     ) {
-        AvatarLayer(
-            drawableRes = AvatarAssetCatalog.FACE_BASE,
+        Image(
+            painter = painterResource(id = option.drawableRes),
+            contentDescription = null,
             modifier = Modifier.fillMaxSize(),
-            tint = AvatarPreviewDefaults.skinToneColor(avatar.skinTone),
+            contentScale = ContentScale.Crop,
         )
-        AvatarLayer(
-            drawableRes = AvatarAssetCatalog.presentationLayer(avatar.presentation),
-            modifier = Modifier.fillMaxSize(),
-        )
-        AvatarLayer(
-            drawableRes = AvatarAssetCatalog.hairLayer(avatar.hairStyle),
-            modifier = Modifier.fillMaxSize(),
-        )
-        AvatarAssetCatalog.glassesLayer(avatar.glassesStyle)?.let { drawableRes ->
-            AvatarLayer(
-                drawableRes = drawableRes,
-                modifier = Modifier.fillMaxSize(),
-            )
-        }
-        AvatarAssetCatalog.hatLayer(avatar.hatStyle)?.let { drawableRes ->
-            AvatarLayer(
-                drawableRes = drawableRes,
-                modifier = Modifier.fillMaxSize(),
-            )
-        }
     }
 }
 
 @Composable
-private fun BoxScope.AvatarLayer(
-    drawableRes: Int,
-    modifier: Modifier = Modifier,
-    tint: Color? = null,
-) {
-    Image(
-        painter = painterResource(id = drawableRes),
-        contentDescription = null,
-        modifier = modifier.align(Alignment.Center),
-        contentScale = ContentScale.Fit,
-        colorFilter = tint?.let(ColorFilter::tint),
-    )
-}
-
-@Composable
-fun AvatarTraitOptionCard(
-    label: String,
+fun AvatarOptionCard(
+    option: AvatarOption,
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
-    preview: @Composable () -> Unit,
 ) {
     val containerColor = if (selected) {
         MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
@@ -137,16 +100,17 @@ fun AvatarTraitOptionCard(
     } else {
         MaterialTheme.colorScheme.outline.copy(alpha = 0.45f)
     }
+
     Card(
         modifier = modifier
             .semantics {
-                contentDescription = "$label avatar option"
+                contentDescription = "${option.label} avatar option"
                 role = Role.Button
             }
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(containerColor = containerColor),
-        border = androidx.compose.foundation.BorderStroke(1.dp, borderColor),
+        border = BorderStroke(1.dp, borderColor),
     ) {
         Column(
             modifier = Modifier
@@ -159,49 +123,20 @@ fun AvatarTraitOptionCard(
                 color = AvatarPreviewDefaults.containerColor(),
                 shape = RoundedCornerShape(18.dp),
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(72.dp)
-                        .padding(8.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    preview()
-                }
+                AvatarPreview(
+                    avatar = AvatarConfig(option.id),
+                    size = 88.dp,
+                    modifier = Modifier.padding(8.dp),
+                    contentDescription = null,
+                )
             }
             Text(
-                text = label,
+                text = option.label,
                 style = MaterialTheme.typography.labelLarge,
                 color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                 fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
             )
         }
-    }
-}
-
-@Composable
-fun AvatarSkinToneOptionCard(
-    skinTone: AvatarSkinTone,
-    selected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    AvatarTraitOptionCard(
-        label = skinTone.label,
-        selected = selected,
-        onClick = onClick,
-        modifier = modifier,
-    ) {
-        Box(
-            modifier = Modifier
-                .size(34.dp)
-                .clip(CircleShape)
-                .background(AvatarPreviewDefaults.skinToneColor(skinTone))
-                .border(
-                    width = 1.dp,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
-                    shape = CircleShape,
-                ),
-        )
     }
 }
 
@@ -218,28 +153,9 @@ object AvatarPreviewDefaults {
 
     @Composable
     fun borderColor(): Color = MaterialTheme.colorScheme.outline.copy(alpha = 0.28f)
-
-    fun skinToneColor(skinTone: AvatarSkinTone): Color = when (skinTone) {
-        AvatarSkinTone.LIGHT -> Color(0xFFF6D7C3)
-        AvatarSkinTone.MEDIUM_LIGHT -> Color(0xFFE9BE9A)
-        AvatarSkinTone.MEDIUM -> Color(0xFFCB9469)
-        AvatarSkinTone.MEDIUM_DARK -> Color(0xFF9B6846)
-        AvatarSkinTone.DARK -> Color(0xFF6B452D)
-    }
 }
 
 internal fun avatarContentDescription(avatar: AvatarConfig): String {
-    return buildString {
-        append("Avatar preview, ")
-        append(avatar.skinTone.label)
-        append(" skin, ")
-        append(avatar.presentation.label.lowercase())
-        append(" look, ")
-        append(avatar.hairStyle.label.lowercase())
-        append(" hair, ")
-        append(avatar.glassesStyle.label.lowercase())
-        append(" glasses, ")
-        append(avatar.hatStyle.label.lowercase())
-        append(" hat")
-    }
+    val option = AvatarAssetCatalog.optionFor(avatar)
+    return "Avatar preview, ${option.label}, ${option.category.label.lowercase()} style"
 }

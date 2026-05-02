@@ -240,6 +240,19 @@ fun RunDetailsScreenContent(
                             exportUiState = exportUiState,
                             onExportReplay = {
                                 if (run.id <= 0L) return@RunDetailsRouteCard
+                                // If an exported result already exists, open the share intent instead of re-encoding
+                                if (exportUiState is ReplayExportUiState.Ready) {
+                                    val result = (exportUiState as ReplayExportUiState.Ready).result
+                                    try {
+                                        launchShareIntent(currentContext, result)
+                                    } catch (_: ActivityNotFoundException) {
+                                        exportUiState = ReplayExportUiState.Error("No compatible app is available to share this replay video.")
+                                    } catch (_: IllegalArgumentException) {
+                                        exportUiState = ReplayExportUiState.Error("Replay sharing could not be started.")
+                                    }
+                                    return@RunDetailsRouteCard
+                                }
+
                                 replayPlaying = false
                                 exportUiState = ReplayExportUiState.Exporting
                                 coroutineScope.launch {
@@ -450,10 +463,9 @@ private fun RunDetailsRouteCard(
                             }
                         }
                     }
-                    Row(
+                    Column(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Text("Share replay", style = MaterialTheme.typography.titleSmall, color = accent)
@@ -483,6 +495,7 @@ private fun RunDetailsRouteCard(
                                 )
                             }
                         }
+
                         if (replayUiModel.showExportProgress) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(28.dp),
@@ -491,7 +504,10 @@ private fun RunDetailsRouteCard(
                         } else {
                             Button(
                                 onClick = onExportReplay,
-                                modifier = Modifier.semantics { contentDescription = "Export run replay video" },
+                                colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = accent),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .semantics { contentDescription = "Export run replay video" },
                             ) {
                                 Text(replayUiModel.exportButtonLabel)
                             }

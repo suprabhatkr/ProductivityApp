@@ -13,7 +13,10 @@ import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.snapshotter.MapSnapshot
 import kotlin.math.min
 
-class RunReplayOverlayRenderer {
+class RunReplayOverlayRenderer(
+    private val startIcon: Bitmap? = null,
+    private val endIcon: Bitmap? = null,
+) {
 
     fun render(
         snapshot: MapSnapshot,
@@ -36,6 +39,7 @@ class RunReplayOverlayRenderer {
             points = allPoints,
             visiblePointCount = visiblePointCount.coerceAtLeast(1),
         )
+        drawStartEndMarkers(canvas, snapshot, allPoints)
         drawProgressMarker(canvas, snapshot, allPoints.getOrNull((visiblePointCount - 1).coerceAtLeast(0)))
         drawTopOverlay(canvas, overlayStats)
         drawAttribution(canvas, snapshot.attributions.joinToString(" • "))
@@ -51,15 +55,17 @@ class RunReplayOverlayRenderer {
         val path = buildPath(snapshot, points) ?: return
         val glowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
-            color = Color.argb(70, 121, 134, 203)
-            strokeWidth = 18f
+            // soft light-green glow
+            color = Color.argb(80, 123, 227, 138)
+            strokeWidth = 10f
             strokeCap = Paint.Cap.ROUND
             strokeJoin = Paint.Join.ROUND
         }
         val basePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
-            color = Color.argb(90, 220, 225, 245)
-            strokeWidth = 6f
+            // thinner solid light-green route
+            color = Color.argb(200, 123, 227, 138)
+            strokeWidth = 3f
             strokeCap = Paint.Cap.ROUND
             strokeJoin = Paint.Join.ROUND
         }
@@ -77,15 +83,15 @@ class RunReplayOverlayRenderer {
         val path = buildPath(snapshot, points, visiblePointCount) ?: return
         val glowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
-            color = Color.argb(120, 103, 80, 255)
-            strokeWidth = 20f
+            color = Color.argb(110, 123, 227, 138)
+            strokeWidth = 12f
             strokeCap = Paint.Cap.ROUND
             strokeJoin = Paint.Join.ROUND
         }
         val routePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
-            color = Color.parseColor("#6750FF")
-            strokeWidth = 9f
+            color = Color.parseColor("#7BE38A")
+            strokeWidth = 4f
             strokeCap = Paint.Cap.ROUND
             strokeJoin = Paint.Join.ROUND
         }
@@ -106,10 +112,57 @@ class RunReplayOverlayRenderer {
         }
         val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.FILL
-            color = Color.parseColor("#6750FF")
+            color = Color.parseColor("#7BE38A")
         }
         canvas.drawCircle(pixel.x, pixel.y, 16f, haloPaint)
         canvas.drawCircle(pixel.x, pixel.y, 9f, fillPaint)
+    }
+
+    private fun drawStartEndMarkers(canvas: Canvas, snapshot: MapSnapshot, points: List<RunReplayHelper.Point>) {
+        if (points.isEmpty()) return
+        val startPixel = snapshot.pixelForLatLng(LatLng(points.first().lat, points.first().lon))
+        val endPixel = snapshot.pixelForLatLng(LatLng(points.last().lat, points.last().lon))
+
+        val haloPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            color = Color.argb(110, 255, 255, 255)
+        }
+
+        // draw halos
+        canvas.drawCircle(startPixel.x, startPixel.y, 14f, haloPaint)
+        canvas.drawCircle(endPixel.x, endPixel.y, 14f, haloPaint)
+
+        // draw provided icons if available, otherwise fallback to emoji text
+        val iconSizePx = 28
+        startIcon?.let { bmp ->
+            val scaled = Bitmap.createScaledBitmap(bmp, iconSizePx, iconSizePx, true)
+            canvas.drawBitmap(scaled, startPixel.x - scaled.width / 2f, startPixel.y - scaled.height / 2f, null)
+        } ?: run {
+            val startPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.FILL
+                color = Color.parseColor("#7BE38A")
+                textSize = 28f
+                typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            }
+            val startText = "\u25B6"
+            val startTextWidth = startPaint.measureText(startText)
+            canvas.drawText(startText, startPixel.x - startTextWidth / 2f, startPixel.y + 10f, startPaint)
+        }
+
+        endIcon?.let { bmp ->
+            val scaled = Bitmap.createScaledBitmap(bmp, iconSizePx, iconSizePx, true)
+            canvas.drawBitmap(scaled, endPixel.x - scaled.width / 2f, endPixel.y - scaled.height / 2f, null)
+        } ?: run {
+            val endPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.FILL
+                color = Color.parseColor("#FF6B6B")
+                textSize = 28f
+                typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            }
+            val endText = "\uD83C\uDFC1"
+            val endTextWidth = endPaint.measureText(endText)
+            canvas.drawText(endText, endPixel.x - endTextWidth / 2f, endPixel.y + 10f, endPaint)
+        }
     }
 
     private fun drawTopOverlay(

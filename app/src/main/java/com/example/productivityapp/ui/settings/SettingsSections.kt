@@ -77,7 +77,7 @@ fun ProfileSettingsSection(
             modifier = Modifier
                 .fillMaxWidth()
                 .semantics {
-                    contentDescription = "Edit avatar"
+                    contentDescription = "Choose avatar"
                     role = Role.Button
                 }
                 .clickable(onClick = onOpenAvatarEditor),
@@ -107,13 +107,13 @@ fun ProfileSettingsSection(
                         color = MaterialTheme.colorScheme.onSurface,
                     )
                     Text(
-                        text = "Personalize your look with skin, hair, glasses, hats, and more.",
+                        text = "Pick from General, Male, Female, or Creature avatar collections.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
                 OutlinedButton(onClick = onOpenAvatarEditor) {
-                    Text("Edit")
+                    Text("Choose")
                 }
             }
         }
