@@ -13,6 +13,8 @@ import androidx.core.app.NotificationCompat
 import android.app.Service
 import com.example.productivityapp.data.RepositoryProvider
 import com.example.productivityapp.data.entities.RunPointEntity
+import com.example.productivityapp.data.entities.type
+import com.example.productivityapp.data.model.OutdoorActivityType
 import com.google.android.gms.location.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -32,6 +34,7 @@ class RunTrackingService : Service() {
         const val ACTION_PAUSE = "com.example.productivityapp.action.PAUSE_RUN"
         const val ACTION_RESUME = "com.example.productivityapp.action.RESUME_RUN"
         const val ACTION_STOP = "com.example.productivityapp.action.STOP_RUN"
+        const val EXTRA_ACTIVITY_TYPE = "extra_activity_type"
         private const val CHANNEL_ID = "run_service_channel"
         private const val NOTIF_ID = 2001
         private const val DEFAULT_DAILY_RUN_GOAL_METERS = 5_000.0
@@ -51,6 +54,7 @@ class RunTrackingService : Service() {
     private var lastLocation: Location? = null
     private var distanceMeters: Double = 0.0
     private var startTimeMs: Long = 0L
+    private var activityType: OutdoorActivityType = OutdoorActivityType.RUN
 
     override fun onCreate() {
         super.onCreate()
@@ -74,20 +78,22 @@ class RunTrackingService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
-            ACTION_START -> startRun()
+            ACTION_START -> startRun(intent)
             ACTION_PAUSE -> pauseRun()
             ACTION_RESUME -> resumeRun()
             ACTION_STOP -> stopRun()
-            else -> startRun()
+            else -> startRun(intent)
         }
         return START_STICKY
     }
 
-    private fun startRun() {
+    private fun startRun(intent: Intent?) {
         if (runId > 0L && !isPaused) return
 
+        activityType = OutdoorActivityType.fromStorageValue(intent?.getStringExtra(EXTRA_ACTIVITY_TYPE))
+
         // start foreground
-        startForeground(NOTIF_ID, buildNotification("Run tracking"))
+        startForeground(NOTIF_ID, buildNotification("${activityType.label} tracking"))
         startTimeMs = System.currentTimeMillis()
         activeSegmentStartElapsedMs = SystemClock.elapsedRealtime()
         elapsedBeforePauseMs = 0L
@@ -100,6 +106,7 @@ class RunTrackingService : Service() {
             try {
                 val repo = RepositoryProvider.provideRunRepository(applicationContext)
                 val runEntity = com.example.productivityapp.data.entities.RunEntity(
+                    activityType = activityType.storageValue,
                     startTime = startTimeMs,
                     endTime = null,
                     distanceMeters = 0.0,
@@ -251,7 +258,9 @@ class RunTrackingService : Service() {
                             avgSpeedMps = avgSpeed
                         )
                         repo.updateRun(updated)
-                        maybeSendRunMilestones(runId = existing.id, distanceMeters = distanceMeters)
+                        if (existing.type == OutdoorActivityType.RUN) {
+                            maybeSendRunMilestones(runId = existing.id, distanceMeters = distanceMeters)
+                        }
                     }
                 }
             } catch (_: Throwable) {
@@ -300,7 +309,7 @@ class RunTrackingService : Service() {
         )
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Run Tracker")
+            .setContentTitle("${activityType.label} Tracker")
             .setContentText(text)
             .setSmallIcon(android.R.drawable.ic_menu_compass)
             .setOngoing(true)

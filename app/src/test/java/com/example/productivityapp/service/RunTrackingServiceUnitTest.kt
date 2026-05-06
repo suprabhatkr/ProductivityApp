@@ -3,10 +3,12 @@ package com.example.productivityapp.service
 import android.content.Context
 import android.content.Intent
 import android.location.Location
+import android.os.Bundle
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.example.productivityapp.data.AppDatabase
 import com.example.productivityapp.data.DatabaseProvider
+import com.example.productivityapp.data.model.OutdoorActivityType
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -155,6 +157,33 @@ class RunTrackingServiceUnitTest {
         service.onStartCommand(Intent(context, RunTrackingService::class.java).apply { action = RunTrackingService.ACTION_STOP }, 0, 0)
     }
 
+    @Test
+    fun startWalk_persistsWalkTypeAndUsesWalkNotificationCopy() = runBlocking {
+        val controller = Robolectric.buildService(RunTrackingService::class.java).create()
+        val service = controller.get()
+        val provider = TestLocationProvider()
+        service.setLocationProvider(provider)
+
+        service.onStartCommand(
+            Intent(context, RunTrackingService::class.java).apply {
+                action = RunTrackingService.ACTION_START
+                putExtra(RunTrackingService.EXTRA_ACTIVITY_TYPE, OutdoorActivityType.WALK.storageValue)
+            },
+            0,
+            0,
+        )
+
+        waitFor { latestRunId() > 0L }
+        assertEquals(OutdoorActivityType.WALK.storageValue, latestActivityType())
+
+        val notification = service.buildNotificationForTest("Walk tracking")
+        val extras = notification.extras ?: Bundle.EMPTY
+        assertEquals("Walk Tracker", extras.getCharSequence(android.app.Notification.EXTRA_TITLE)?.toString())
+        assertEquals("Walk tracking", extras.getCharSequence(android.app.Notification.EXTRA_TEXT)?.toString())
+
+        service.onStartCommand(Intent(context, RunTrackingService::class.java).apply { action = RunTrackingService.ACTION_STOP }, 0, 0)
+    }
+
     private fun latestRunId(): Long {
         val cursor = db.query(androidx.sqlite.db.SimpleSQLiteQuery("SELECT id FROM runs ORDER BY startTime DESC LIMIT 1"))
         return try {
@@ -193,6 +222,15 @@ class RunTrackingServiceUnitTest {
         }
     }
 
+    private fun latestActivityType(): String? {
+        val cursor = db.query(androidx.sqlite.db.SimpleSQLiteQuery("SELECT activityType FROM runs ORDER BY startTime DESC LIMIT 1"))
+        return try {
+            if (cursor.moveToFirst()) cursor.getString(0) else null
+        } finally {
+            cursor.close()
+        }
+    }
+
     private fun waitFor(timeoutMs: Long = 2_000, condition: () -> Boolean) {
         val start = System.currentTimeMillis()
         while (System.currentTimeMillis() - start < timeoutMs) {
@@ -202,5 +240,4 @@ class RunTrackingServiceUnitTest {
         assertTrue("Condition not met within $timeoutMs ms", condition())
     }
 }
-
 

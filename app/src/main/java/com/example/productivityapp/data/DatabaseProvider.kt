@@ -52,11 +52,72 @@ object DatabaseProvider {
                 }
             }
 
+            val MIGRATION_4_5 = object : Migration(4, 5) {
+                override fun migrate(db: SupportSQLiteDatabase) {
+                    db.execSQL(
+                        """
+                        CREATE TABLE IF NOT EXISTS workouts (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                            workoutType TEXT NOT NULL,
+                            startTime INTEGER NOT NULL,
+                            endTime INTEGER,
+                            durationSec INTEGER NOT NULL,
+                            notes TEXT
+                        )
+                        """.trimIndent()
+                    )
+                    db.execSQL("CREATE INDEX IF NOT EXISTS index_workouts_startTime ON workouts(startTime)")
+                    db.execSQL("CREATE INDEX IF NOT EXISTS index_workouts_endTime ON workouts(endTime)")
+                }
+            }
+
+            val MIGRATION_5_6 = object : Migration(5, 6) {
+                override fun migrate(db: SupportSQLiteDatabase) {
+                    db.execSQL(
+                        """
+                        CREATE TABLE IF NOT EXISTS mindfulness_sessions (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                            sessionType TEXT NOT NULL,
+                            startTime INTEGER NOT NULL,
+                            endTime INTEGER,
+                            durationSec INTEGER NOT NULL,
+                            note TEXT
+                        )
+                        """.trimIndent()
+                    )
+                    db.execSQL("CREATE INDEX IF NOT EXISTS index_mindfulness_sessions_startTime ON mindfulness_sessions(startTime)")
+                    db.execSQL("CREATE INDEX IF NOT EXISTS index_mindfulness_sessions_endTime ON mindfulness_sessions(endTime)")
+                    db.execSQL(
+                        """
+                        CREATE TABLE IF NOT EXISTS mind_logs (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                            createdAt INTEGER NOT NULL,
+                            content TEXT NOT NULL
+                        )
+                        """.trimIndent()
+                    )
+                    db.execSQL("CREATE INDEX IF NOT EXISTS index_mind_logs_createdAt ON mind_logs(createdAt)")
+                }
+            }
+
+            val MIGRATION_6_7 = object : Migration(6, 7) {
+                override fun migrate(db: SupportSQLiteDatabase) {
+                    db.execSQL("ALTER TABLE runs ADD COLUMN activityType TEXT NOT NULL DEFAULT 'run'")
+                }
+            }
+
             val instance = Room.databaseBuilder(
                 context.applicationContext,
                 AppDatabase::class.java,
                 "productivity-db"
-            ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4).build()
+            ).addMigrations(
+                MIGRATION_1_2,
+                MIGRATION_2_3,
+                MIGRATION_3_4,
+                MIGRATION_4_5,
+                MIGRATION_5_6,
+                MIGRATION_6_7,
+            ).build()
             INSTANCE = instance
             instance
         }

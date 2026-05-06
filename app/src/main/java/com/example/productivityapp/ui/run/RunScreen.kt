@@ -8,7 +8,6 @@ import android.provider.Settings
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -54,6 +53,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -63,6 +63,8 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.productivityapp.data.RepositoryProvider
 import com.example.productivityapp.data.entities.RunEntity
+import com.example.productivityapp.data.entities.type
+import com.example.productivityapp.data.model.OutdoorActivityType
 import com.example.productivityapp.service.RunTrackingService
 import com.example.productivityapp.ui.settings.RunFeatureSettingsDialog
 import com.example.productivityapp.ui.settings.rememberSharedSettingsViewModel
@@ -99,6 +101,50 @@ internal const val DefaultDailyRunGoalMeters = 5_000.0
 private val RunDateFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("EEE, MMM d")
 private val RunTimeFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("h:mm a")
 
+@Composable
+internal fun rememberRunPalette(): RunPalette {
+    val useDarkPalette = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+    return remember(useDarkPalette) {
+        if (useDarkPalette) {
+            RunPalette(
+                backdrop = RunBackdropDark,
+                surface = RunSurfaceDark,
+                surfaceAlt = RunSurfaceAltDark,
+                track = RunTrackDark,
+                accent = RunAccentDark,
+                tone = RunToneDark,
+                chip = RunChipDark,
+                warning = RunWarningDark,
+                useDarkPalette = true,
+            )
+        } else {
+            RunPalette(
+                backdrop = RunBackdropLight,
+                surface = RunSurfaceLight,
+                surfaceAlt = RunSurfaceAltLight,
+                track = RunTrackLight,
+                accent = RunAccentLight,
+                tone = RunToneLight,
+                chip = RunChipLight,
+                warning = RunWarningLight,
+                useDarkPalette = false,
+            )
+        }
+    }
+}
+
+internal data class RunPalette(
+    val backdrop: Color,
+    val surface: Color,
+    val surfaceAlt: Color,
+    val track: Color,
+    val accent: Color,
+    val tone: Color,
+    val chip: Color,
+    val warning: Color,
+    val useDarkPalette: Boolean,
+)
+
 @OptIn(ExperimentalPermissionsApi::class, androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun RunScreen(
@@ -114,6 +160,7 @@ fun RunScreen(
     val vm: RunViewModel = viewModel(factory = RunViewModelFactory(repo, uiStateStore))
     val runs = vm.runs.collectAsState()
     val latest = runs.value.firstOrNull()
+    val activeActivityType = latest?.takeIf { it.endTime == null }?.type
 
     val locationPermissionState = rememberPermissionState(Manifest.permission.ACCESS_FINE_LOCATION)
     val notificationPermissionState = rememberPermissionState(Manifest.permission.POST_NOTIFICATIONS)
@@ -156,6 +203,7 @@ fun RunScreen(
     RunScreenContent(
         runs = runs.value,
         isTracking = running,
+        activeActivityType = activeActivityType,
         permissionUiState = permissionUiState,
         onOpenAppSettings = {
             context.startActivity(
@@ -165,26 +213,40 @@ fun RunScreen(
                 )
             )
         },
-        onPrimaryRunAction = {
-            val intent = Intent(context, RunTrackingService::class.java)
-            when (permissionUiState.primaryAction) {
-                RunPrimaryAction.REQUEST_LOCATION -> {
-                    locationPermissionState.launchPermissionRequest()
-                }
-                RunPrimaryAction.START_OR_RESUME_RUN -> {
-                    if (permissionUiState.shouldRequestNotificationsBeforeTracking) {
-                        notificationPermissionState.launchPermissionRequest()
-                    }
-                    intent.action = RunTrackingService.ACTION_START
-                    context.startForegroundService(intent)
-                    vm.setUiRunning(true)
-                }
-                RunPrimaryAction.STOP_RUN -> {
-                    intent.action = RunTrackingService.ACTION_STOP
-                    context.startService(intent)
-                    vm.setUiRunning(false)
-                }
+        onRequestLocation = {
+            locationPermissionState.launchPermissionRequest()
+        },
+        onStartRun = {
+            if (permissionUiState.shouldRequestNotificationsBeforeTracking) {
+                notificationPermissionState.launchPermissionRequest()
             }
+            context.startForegroundService(
+                Intent(context, RunTrackingService::class.java).apply {
+                    action = RunTrackingService.ACTION_START
+                    putExtra(RunTrackingService.EXTRA_ACTIVITY_TYPE, OutdoorActivityType.RUN.storageValue)
+                }
+            )
+            vm.setUiRunning(true)
+        },
+        onStartWalk = {
+            if (permissionUiState.shouldRequestNotificationsBeforeTracking) {
+                notificationPermissionState.launchPermissionRequest()
+            }
+            context.startForegroundService(
+                Intent(context, RunTrackingService::class.java).apply {
+                    action = RunTrackingService.ACTION_START
+                    putExtra(RunTrackingService.EXTRA_ACTIVITY_TYPE, OutdoorActivityType.WALK.storageValue)
+                }
+            )
+            vm.setUiRunning(true)
+        },
+        onStopActivity = {
+            context.startService(
+                Intent(context, RunTrackingService::class.java).apply {
+                    action = RunTrackingService.ACTION_STOP
+                }
+            )
+            vm.setUiRunning(false)
         },
         onPauseRun = {
             context.startService(
@@ -244,9 +306,13 @@ fun RunScreen(
 internal fun RunScreenContent(
     runs: List<RunEntity>,
     isTracking: Boolean,
+    activeActivityType: OutdoorActivityType?,
     permissionUiState: RunPermissionUiState,
     onOpenAppSettings: () -> Unit,
-    onPrimaryRunAction: () -> Unit,
+    onRequestLocation: () -> Unit,
+    onStartRun: () -> Unit,
+    onStartWalk: () -> Unit,
+    onStopActivity: () -> Unit,
     onPauseRun: () -> Unit,
     onResumeRun: () -> Unit,
     onPermissionCardAction: (RunPermissionCardAction) -> Unit,
@@ -260,25 +326,17 @@ internal fun RunScreenContent(
     val latest = runs.firstOrNull()
     val latestCompleted = runs.firstOrNull { it.endTime != null }
     val hasPausedRun = hasPausedRun(latest, isTracking)
-    val darkTheme = isSystemInDarkTheme()
-    val backdrop = if (darkTheme) RunBackdropDark else RunBackdropLight
-    val surface = if (darkTheme) RunSurfaceDark else RunSurfaceLight
-    val surfaceAlt = if (darkTheme) RunSurfaceAltDark else RunSurfaceAltLight
-    val track = if (darkTheme) RunTrackDark else RunTrackLight
-    val accent = if (darkTheme) RunAccentDark else RunAccentLight
-    val tone = if (darkTheme) RunToneDark else RunToneLight
-    val chipColor = if (darkTheme) RunChipDark else RunChipLight
-    val warning = if (darkTheme) RunWarningDark else RunWarningLight
+    val palette = rememberRunPalette()
 
     val metrics = remember(snapshot) {
         listOf(
             RunMetric(
                 title = "This week",
                 value = formatDistance(snapshot.weeklyDistanceMeters),
-                subtitle = "${snapshot.weeklyRunCount} run${if (snapshot.weeklyRunCount == 1) "" else "s"}"
+                subtitle = "${snapshot.weeklyRunCount} session${if (snapshot.weeklyRunCount == 1) "" else "s"}"
             ),
             RunMetric(
-                title = "Total runs",
+                title = "Total sessions",
                 value = snapshot.totalRuns.toString(),
                 subtitle = "${snapshot.completedRuns} completed"
             ),
@@ -290,7 +348,7 @@ internal fun RunScreenContent(
             RunMetric(
                 title = "Longest",
                 value = formatDistance(snapshot.longestRunMeters),
-                subtitle = "Longest recorded run"
+                subtitle = "Longest recorded outing"
             ),
         )
     }
@@ -298,7 +356,7 @@ internal fun RunScreenContent(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Run", fontWeight = FontWeight.SemiBold, fontSize = 18.sp) },
+                title = { Text("Run & Walk", fontWeight = FontWeight.SemiBold, fontSize = 18.sp) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
@@ -312,25 +370,25 @@ internal fun RunScreenContent(
                     IconButton(onClick = onOpenFeatureSettings) {
                         Icon(
                             imageVector = Icons.Filled.Settings,
-                            contentDescription = "Open run settings",
+                            contentDescription = "Open run and walk settings",
                             tint = MaterialTheme.colorScheme.onSurface,
                         )
                     }
                 },
                 expandedHeight = 48.dp,
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = surface,
+                    containerColor = palette.surface,
                     titleContentColor = MaterialTheme.colorScheme.onSurface,
                 ),
             )
         },
-        containerColor = backdrop,
+        containerColor = palette.backdrop,
     ) { innerPadding ->
         Surface(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
-            color = backdrop,
+            color = palette.backdrop,
         ) {
             LazyColumn(
                 modifier = Modifier
@@ -342,22 +400,27 @@ internal fun RunScreenContent(
                 item {
                     RunHeroRingCard(
                         snapshot = snapshot,
-                        accent = accent,
-                        track = track,
-                        tone = tone,
-                        surface = surface,
-                        chipColor = chipColor,
+                        accent = palette.accent,
+                        track = palette.track,
+                        tone = palette.tone,
+                        surface = palette.surface,
+                        chipColor = palette.chip,
+                        useDarkPalette = palette.useDarkPalette,
                     )
                 }
 
                 item {
                     RunActionCard(
                         snapshot = snapshot,
-                        primaryLabel = permissionUiState.primaryActionLabel,
-                        accent = accent,
-                        surface = surfaceAlt,
-                        warning = warning,
-                        onPrimaryAction = onPrimaryRunAction,
+                        activeActivityType = activeActivityType,
+                        permissionUiState = permissionUiState,
+                        accent = palette.accent,
+                        surface = palette.surfaceAlt,
+                        warning = palette.warning,
+                        onRequestLocation = onRequestLocation,
+                        onStartRun = onStartRun,
+                        onStartWalk = onStartWalk,
+                        onStopActivity = onStopActivity,
                         onResumeRun = onResumeRun,
                         onPauseRun = onPauseRun,
                     )
@@ -370,8 +433,8 @@ internal fun RunScreenContent(
                             message = card.message,
                             primaryLabel = card.primaryLabel,
                             secondaryLabel = card.secondaryLabel,
-                            surface = surface,
-                            accent = accent,
+                            surface = palette.surface,
+                            accent = palette.accent,
                             onPrimary = { onPermissionCardAction(card.action) },
                             onSecondary = onOpenAppSettings,
                         )
@@ -381,8 +444,8 @@ internal fun RunScreenContent(
                 item {
                     RunLatestRouteCard(
                         latestRun = latest,
-                        accent = accent,
-                        surface = surfaceAlt,
+                        accent = palette.accent,
+                        surface = palette.surfaceAlt,
                         onOpenRunDetails = onOpenRunDetails,
                     )
                 }
@@ -395,8 +458,8 @@ internal fun RunScreenContent(
                         rowMetrics.forEach { metric ->
                             RunMetricCard(
                                 metric = metric,
-                                surface = surface,
-                                accent = accent,
+                                surface = palette.surface,
+                                accent = palette.accent,
                                 modifier = Modifier.weight(1f),
                             )
                         }
@@ -410,8 +473,8 @@ internal fun RunScreenContent(
                     RunInsightsCard(
                         snapshot = snapshot,
                         latestCompletedRun = latestCompleted,
-                        surface = surface,
-                        accent = accent,
+                        surface = palette.surface,
+                        accent = palette.accent,
                     )
                 }
 
@@ -426,7 +489,7 @@ internal fun RunScreenContent(
 
                 if (runs.isEmpty()) {
                     item {
-                        RunEmptyHistoryCard(surface = surfaceAlt)
+                        RunEmptyHistoryCard(surface = palette.surfaceAlt)
                     }
                 } else {
                     items(runs.take(6), key = { it.id }) { run ->
@@ -434,10 +497,10 @@ internal fun RunScreenContent(
                             run = run,
                             isTracking = isTracking && run.id == latest?.id,
                             isPaused = !isTracking && run.id == latest?.id && run.endTime == null,
-                            surface = surfaceAlt,
-                            accent = accent,
-                            tone = tone,
-                            warning = warning,
+                            surface = palette.surfaceAlt,
+                            accent = palette.accent,
+                            tone = palette.tone,
+                            warning = palette.warning,
                             onOpenRunDetails = onOpenRunDetails,
                         )
                     }
@@ -455,9 +518,9 @@ private fun RunHeroRingCard(
     tone: Color,
     surface: Color,
     chipColor: Color,
+    useDarkPalette: Boolean,
 ) {
-    val isDark = isSystemInDarkTheme()
-    val headlineSurface = if (isDark) surface.copy(alpha = 0.96f) else Color.White
+    val headlineSurface = if (useDarkPalette) surface.copy(alpha = 0.96f) else MaterialTheme.colorScheme.surface
 
     Column(
         modifier = Modifier
@@ -471,7 +534,7 @@ private fun RunHeroRingCard(
             shape = RoundedCornerShape(999.dp),
         ) {
             Text(
-                text = "Today's run - ${snapshot.statusLabel}",
+                text = "Today's outdoor activity - ${snapshot.statusLabel}",
                 modifier = Modifier.padding(horizontal = 18.dp, vertical = 10.dp),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
@@ -493,7 +556,7 @@ private fun RunHeroRingCard(
                 color = tone,
             )
             RunChip(
-                text = "${snapshot.totalRuns} run${if (snapshot.totalRuns == 1) "" else "s"}",
+                text = "${snapshot.totalRuns} session${if (snapshot.totalRuns == 1) "" else "s"}",
                 background = chipColor,
                 color = tone,
             )
@@ -504,11 +567,15 @@ private fun RunHeroRingCard(
 @Composable
 private fun RunActionCard(
     snapshot: RunDashboardSnapshot,
-    primaryLabel: String,
+    activeActivityType: OutdoorActivityType?,
+    permissionUiState: RunPermissionUiState,
     accent: Color,
     surface: Color,
     warning: Color,
-    onPrimaryAction: () -> Unit,
+    onRequestLocation: () -> Unit,
+    onStartRun: () -> Unit,
+    onStartWalk: () -> Unit,
+    onStopActivity: () -> Unit,
     onResumeRun: () -> Unit,
     onPauseRun: () -> Unit,
 ) {
@@ -533,8 +600,7 @@ private fun RunActionCard(
                         .clip(RoundedCornerShape(999.dp))
                         .background(stateAccent)
                 )
-                Text("Run controls", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                
+                Text("Run & Walk controls", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             }
             Text(
                 snapshot.statusDetail,
@@ -557,32 +623,66 @@ private fun RunActionCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            if (!snapshot.isTracking && !snapshot.hasPausedRun && permissionUiState.primaryAction == RunPrimaryAction.REQUEST_LOCATION) {
                 Button(
-                    onClick = onPrimaryAction,
+                    onClick = onRequestLocation,
                     modifier = Modifier
-                        .weight(1f)
-                        .semantics { contentDescription = primaryLabel },
+                        .fillMaxWidth()
+                        .semantics { contentDescription = permissionUiState.primaryActionLabel },
                 ) {
-                    Text(primaryLabel)
+                    Text(permissionUiState.primaryActionLabel)
                 }
-                if (snapshot.isTracking) {
-                    OutlinedButton(
-                        onClick = onPauseRun,
+            } else if (!snapshot.isTracking && !snapshot.hasPausedRun) {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Button(
+                        onClick = onStartRun,
                         modifier = Modifier
                             .weight(1f)
-                            .semantics { contentDescription = "Pause run" },
+                            .semantics { contentDescription = "Start Run" },
                     ) {
-                        Text("Pause")
+                        Text("Start Run")
                     }
-                } else if (snapshot.hasPausedRun) {
                     OutlinedButton(
-                        onClick = onResumeRun,
+                        onClick = onStartWalk,
                         modifier = Modifier
                             .weight(1f)
-                            .semantics { contentDescription = "Resume run" },
+                            .semantics { contentDescription = "Start Walk" },
                     ) {
-                        Text("Resume")
+                        Text("Start Walk")
+                    }
+                }
+            } else {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Button(
+                        onClick = onStopActivity,
+                        modifier = Modifier
+                            .weight(1f)
+                            .semantics { contentDescription = "Stop ${activeActivityType?.label ?: "activity"}" },
+                    ) {
+                        Text("Stop ${activeActivityType?.label ?: "Session"}")
+                    }
+                    if (snapshot.isTracking) {
+                        OutlinedButton(
+                            onClick = onPauseRun,
+                            modifier = Modifier
+                                .weight(1f)
+                                .semantics {
+                                    contentDescription = "Pause ${activeActivityType?.label?.lowercase(Locale.US) ?: "activity"}"
+                                },
+                        ) {
+                            Text("Pause")
+                        }
+                    } else if (snapshot.hasPausedRun) {
+                        OutlinedButton(
+                            onClick = onResumeRun,
+                            modifier = Modifier
+                                .weight(1f)
+                                .semantics {
+                                    contentDescription = "Resume ${activeActivityType?.label?.lowercase(Locale.US) ?: "activity"}"
+                                },
+                        ) {
+                            Text("Resume")
+                        }
                     }
                 }
             }
@@ -659,7 +759,11 @@ private fun RunLatestRouteCard(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(
-                if (latestRun?.endTime == null && latestRun != null) "Live route" else "Latest route",
+                if (latestRun?.endTime == null && latestRun != null) {
+                    "Live ${latestRun.type.label.lowercase(Locale.US)} route"
+                } else {
+                    "Latest route"
+                },
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface,
@@ -668,7 +772,7 @@ private fun RunLatestRouteCard(
             when {
                 latestRun == null -> {
                     Text(
-                        "Your most recent route will appear here once you log a run.",
+                        "Your most recent route will appear here once you log a run or walk.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -695,7 +799,7 @@ private fun RunLatestRouteCard(
                         }
                         OutlinedButton(
                             onClick = { onOpenRunDetails(latestRun.id) },
-                            modifier = Modifier.semantics { contentDescription = "Open latest run details" },
+                            modifier = Modifier.semantics { contentDescription = "Open latest route details" },
                         ) {
                             Text("Open details")
                         }
@@ -728,7 +832,7 @@ private fun RunLatestRouteCard(
                         }
                         OutlinedButton(
                             onClick = { onOpenRunDetails(latestRun.id) },
-                            modifier = Modifier.semantics { contentDescription = "Open latest run details" },
+                            modifier = Modifier.semantics { contentDescription = "Open latest route details" },
                         ) {
                             Text("Open details")
                         }
@@ -738,7 +842,7 @@ private fun RunLatestRouteCard(
                             .fillMaxWidth()
                             .height(240.dp)
                             .clip(RoundedCornerShape(20.dp))
-                            .background(Color.Black.copy(alpha = 0.08f)),
+                            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)),
                     ) {
                         RunMapView(
                             polylineEncoded = latestRun.polyline,
@@ -797,10 +901,10 @@ private fun RunInsightsCard(
     accent: Color,
 ) {
     val insight = when {
-        snapshot.isTracking -> "You are currently recording a run. Keep the app visible or enable background access when you want more reliable tracking outside the app."
-        snapshot.hasPausedRun -> "You have a paused run waiting. Resume it when you're ready, or stop it to save the session."
-        latestCompletedRun != null -> "Your latest completed run covered ${formatDistance(latestCompletedRun.distanceMeters)} in ${formatDuration(latestCompletedRun.durationSec)}."
-        else -> "Start your first run to unlock route history, replay controls, and deeper analysis on this dashboard."
+        snapshot.isTracking -> "You are currently recording a ${snapshot.currentActivityType?.label?.lowercase(Locale.US) ?: "session"}. Keep the app visible or enable background access when you want more reliable tracking outside the app."
+        snapshot.hasPausedRun -> "You have a paused ${snapshot.currentActivityType?.label?.lowercase(Locale.US) ?: "session"} waiting. Resume it when you're ready, or stop it to save the session."
+        latestCompletedRun != null -> "Your latest completed ${latestCompletedRun.type.label.lowercase(Locale.US)} covered ${formatDistance(latestCompletedRun.distanceMeters)} in ${formatDuration(latestCompletedRun.durationSec)}."
+        else -> "Start your first run or walk to unlock route history, replay controls, and deeper analysis on this dashboard."
     }
 
     Card(
@@ -812,7 +916,7 @@ private fun RunInsightsCard(
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Text(
-                "Run insights",
+                "Outdoor insights",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface,
@@ -857,7 +961,7 @@ private fun RunHistoryCard(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onOpenRunDetails(run.id) }
-            .semantics { contentDescription = "Open run details for ${formatRunDate(run.startTime)}" },
+            .semantics { contentDescription = "Open ${run.type.label.lowercase(Locale.US)} details for ${formatRunDate(run.startTime)}" },
         colors = CardDefaults.cardColors(containerColor = surface),
         shape = RoundedCornerShape(22.dp),
     ) {
@@ -872,7 +976,7 @@ private fun RunHistoryCard(
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
-                        formatRunDate(run.startTime),
+                        "${run.type.label} • ${formatRunDate(run.startTime)}",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurface,
@@ -884,7 +988,7 @@ private fun RunHistoryCard(
                     )
                 }
                 RunChip(
-                    text = stateText,
+                    text = "${run.type.label} • $stateText",
                     background = stateColor.copy(alpha = 0.14f),
                     color = stateColor,
                 )
@@ -917,7 +1021,7 @@ private fun RunEmptyHistoryCard(surface: Color) {
         shape = RoundedCornerShape(22.dp),
     ) {
         Text(
-            "No runs yet. When you finish your first route, it will appear here with quick stats and map context.",
+            "No sessions yet. When you finish your first run or walk, it will appear here with quick stats and map context.",
             modifier = Modifier.padding(16.dp),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -950,7 +1054,7 @@ private fun RunProgressRing(
     track: Color,
     background: Color,
 ) {
-    val isDark = isSystemInDarkTheme()
+    val useDarkPalette = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier
@@ -960,7 +1064,7 @@ private fun RunProgressRing(
                 Brush.radialGradient(
                     colors = listOf(
                         background,
-                        if (isDark) background.copy(alpha = 0.92f) else Color.White,
+                        if (useDarkPalette) background.copy(alpha = 0.92f) else MaterialTheme.colorScheme.surface,
                     )
                 )
             )
@@ -1046,6 +1150,7 @@ internal data class RunDashboardSnapshot(
     val statusDetail: String,
     val isTracking: Boolean,
     val hasPausedRun: Boolean,
+    val currentActivityType: OutdoorActivityType?,
 )
 
 internal fun buildRunDashboardSnapshot(
@@ -1061,6 +1166,7 @@ internal fun buildRunDashboardSnapshot(
     val completedRuns = runs.filter { it.endTime != null }
     val latest = runs.firstOrNull()
     val hasPausedRun = hasPausedRun(latest, isTracking)
+    val currentActivityType = latest?.takeIf { it.endTime == null }?.type
 
     val todayDistance = todayRuns.sumOf { it.distanceMeters }
     val weeklyDistance = weeklyRuns.sumOf { it.distanceMeters }
@@ -1069,16 +1175,16 @@ internal fun buildRunDashboardSnapshot(
         .minOrNull()
 
     val statusLabel = when {
-        isTracking -> "Run in progress"
-        hasPausedRun -> "Run paused"
-        completedRuns.isNotEmpty() -> "Ready for your next run"
+        isTracking -> "${currentActivityType?.label ?: "Activity"} in progress"
+        hasPausedRun -> "${currentActivityType?.label ?: "Activity"} paused"
+        completedRuns.isNotEmpty() -> "Ready for your next session"
         else -> "Ready to start"
     }
     val statusDetail = when {
-        isTracking -> "Distance and route will keep updating while this session is active."
-        hasPausedRun -> "Pick up where you left off, or stop the current run to save it."
+        isTracking -> "Distance and route will keep updating while this ${currentActivityType?.label?.lowercase(Locale.US) ?: "session"} is active."
+        hasPausedRun -> "Pick up where you left off, or stop the current ${currentActivityType?.label?.lowercase(Locale.US) ?: "session"} to save it."
         completedRuns.isNotEmpty() -> "Review your latest route, then head back out when you're ready."
-        else -> "Start a run to begin building route history, pace context, and replayable sessions."
+        else -> "Start a run or walk to begin building route history, pace context, and replayable sessions."
     }
 
     return RunDashboardSnapshot(
@@ -1095,6 +1201,7 @@ internal fun buildRunDashboardSnapshot(
         statusDetail = statusDetail,
         isTracking = isTracking,
         hasPausedRun = hasPausedRun,
+        currentActivityType = currentActivityType,
     )
 }
 

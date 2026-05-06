@@ -1,5 +1,6 @@
 package com.example.productivityapp.datastore.profile
 
+import com.example.productivityapp.data.model.AvatarConfig
 import com.example.productivityapp.data.model.UserProfile
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -33,6 +34,7 @@ class EncryptedProtoUserProfileStoreTest {
                 sleepDetectionBufferMinutes = 25,
                 ageYears = 33,
                 gender = "Male",
+                avatar = AvatarConfig(avatarId = "male_11"),
             ),
             migrationState = ProfileMigrationState.MIGRATING,
             migratedAtEpochMs = 42L,

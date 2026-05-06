@@ -44,6 +44,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.productivityapp.data.model.AvatarPickerFilter
+import com.example.productivityapp.ui.avatar.AvatarPickerDialog
 import com.example.productivityapp.viewmodel.SettingsUiState
 import com.example.productivityapp.viewmodel.SettingsViewModel
 
@@ -93,6 +95,11 @@ fun SettingsScreen(
         onTypicalBedtimeChanged = viewModel::updateTypicalBedtime,
         onTypicalWakeTimeChanged = viewModel::updateTypicalWakeTime,
         onSleepDetectionBufferChanged = viewModel::updateSleepDetectionBufferMinutes,
+        onOpenAvatarEditor = viewModel::openAvatarEditor,
+        onDismissAvatarEditor = viewModel::dismissAvatarEditor,
+        onApplyAvatarDraft = viewModel::applyAvatarDraft,
+        onAvatarFilterChanged = viewModel::updateAvatarFilter,
+        onAvatarSelected = viewModel::updateSelectedAvatar,
         onReset = viewModel::resetSettings,
         onSave = { viewModel.saveSettings() },
     )
@@ -116,6 +123,11 @@ fun SettingsScreenContent(
     onTypicalBedtimeChanged: (String) -> Unit,
     onTypicalWakeTimeChanged: (String) -> Unit,
     onSleepDetectionBufferChanged: (String) -> Unit,
+    onOpenAvatarEditor: () -> Unit,
+    onDismissAvatarEditor: () -> Unit,
+    onApplyAvatarDraft: () -> Unit,
+    onAvatarFilterChanged: (AvatarPickerFilter) -> Unit,
+    onAvatarSelected: (String) -> Unit,
     onReset: () -> Unit,
     onSave: () -> Unit,
 ) {
@@ -218,6 +230,7 @@ fun SettingsScreenContent(
                         state = uiState.profile,
                         tone = if (isDark) ProfileToneDark else ProfileToneLight,
                         icon = Icons.Filled.PersonOutline,
+                        onOpenAvatarEditor = onOpenAvatarEditor,
                         onDisplayNameChanged = onDisplayNameChanged,
                         onAgeChanged = onAgeChanged,
                         onGenderChanged = onGenderChanged,
@@ -290,6 +303,17 @@ fun SettingsScreenContent(
                     }
                 }
             }
+        }
+
+        if (uiState.avatarEditor.isVisible) {
+            AvatarPickerDialog(
+                draft = uiState.avatarEditor.draft,
+                selectedFilter = uiState.avatarEditor.selectedFilter,
+                onDismiss = onDismissAvatarEditor,
+                onApply = onApplyAvatarDraft,
+                onFilterChanged = onAvatarFilterChanged,
+                onAvatarSelected = onAvatarSelected,
+            )
         }
     }
 }

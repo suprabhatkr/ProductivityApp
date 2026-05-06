@@ -9,6 +9,8 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.example.productivityapp.data.entities.RunEntity
+import com.example.productivityapp.data.entities.type
+import com.example.productivityapp.data.model.OutdoorActivityType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -26,6 +28,7 @@ class RunScreenContentTest {
                 RunScreenContent(
                     runs = emptyList(),
                     isTracking = false,
+                    activeActivityType = null,
                     permissionUiState = RunPermissionUiState(
                         primaryActionLabel = "Enable Location",
                         primaryAction = RunPrimaryAction.REQUEST_LOCATION,
@@ -39,7 +42,10 @@ class RunScreenContentTest {
                         shouldRequestNotificationsBeforeTracking = false,
                     ),
                     onOpenAppSettings = {},
-                    onPrimaryRunAction = {},
+                    onRequestLocation = {},
+                    onStartRun = {},
+                    onStartWalk = {},
+                    onStopActivity = {},
                     onPauseRun = {},
                     onResumeRun = {},
                     onPermissionCardAction = {},
@@ -47,7 +53,7 @@ class RunScreenContentTest {
             }
         }
 
-        composeRule.onNodeWithText("Run controls").assertIsDisplayed()
+        composeRule.onNodeWithText("Run & Walk controls").assertIsDisplayed()
         composeRule.onNodeWithText("Enable precise location").assertIsDisplayed()
     }
 
@@ -66,6 +72,7 @@ class RunScreenContentTest {
                 RunScreenContent(
                     runs = listOf(latestRun),
                     isTracking = false,
+                    activeActivityType = null,
                     permissionUiState = RunPermissionUiState(
                         primaryActionLabel = "Start Run",
                         primaryAction = RunPrimaryAction.START_OR_RESUME_RUN,
@@ -73,7 +80,10 @@ class RunScreenContentTest {
                         shouldRequestNotificationsBeforeTracking = false,
                     ),
                     onOpenAppSettings = {},
-                    onPrimaryRunAction = {},
+                    onRequestLocation = {},
+                    onStartRun = {},
+                    onStartWalk = {},
+                    onStopActivity = {},
                     onPauseRun = {},
                     onResumeRun = {},
                     onPermissionCardAction = {},
@@ -82,7 +92,7 @@ class RunScreenContentTest {
         }
 
         composeRule.onNodeWithText("Latest route").assertIsDisplayed()
-        composeRule.onNodeWithContentDescription("Open latest run details").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Open latest route details").assertIsDisplayed()
     }
 
     @Test
@@ -94,6 +104,7 @@ class RunScreenContentTest {
             durationSec = 1260L,
             polyline = "",
             endTime = null,
+            activityType = OutdoorActivityType.WALK,
         )
 
         composeRule.setContent {
@@ -101,6 +112,7 @@ class RunScreenContentTest {
                 RunScreenContent(
                     runs = listOf(latestRun),
                     isTracking = false,
+                    activeActivityType = latestRun.type,
                     permissionUiState = RunPermissionUiState(
                         primaryActionLabel = "Start Run",
                         primaryAction = RunPrimaryAction.START_OR_RESUME_RUN,
@@ -108,7 +120,10 @@ class RunScreenContentTest {
                         shouldRequestNotificationsBeforeTracking = false,
                     ),
                     onOpenAppSettings = {},
-                    onPrimaryRunAction = {},
+                    onRequestLocation = {},
+                    onStartRun = {},
+                    onStartWalk = {},
+                    onStopActivity = {},
                     onPauseRun = {},
                     onResumeRun = {},
                     onPermissionCardAction = {},
@@ -117,8 +132,8 @@ class RunScreenContentTest {
             }
         }
 
-        composeRule.onNodeWithText("Live route").assertIsDisplayed()
-        composeRule.onNodeWithContentDescription("Open latest run details").assertIsDisplayed().performClick()
+        composeRule.onNodeWithText("Live walk route").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Open latest route details").assertIsDisplayed().performClick()
 
         composeRule.runOnIdle {
             assertEquals(42L, openedRunId)
@@ -141,6 +156,7 @@ class RunScreenContentTest {
                 RunScreenContent(
                     runs = listOf(pausedRun),
                     isTracking = false,
+                    activeActivityType = pausedRun.type,
                     permissionUiState = RunPermissionUiState(
                         primaryActionLabel = "Start Run",
                         primaryAction = RunPrimaryAction.START_OR_RESUME_RUN,
@@ -148,7 +164,10 @@ class RunScreenContentTest {
                         shouldRequestNotificationsBeforeTracking = false,
                     ),
                     onOpenAppSettings = {},
-                    onPrimaryRunAction = {},
+                    onRequestLocation = {},
+                    onStartRun = {},
+                    onStartWalk = {},
+                    onStopActivity = {},
                     onPauseRun = {},
                     onResumeRun = { resumed = true },
                     onPermissionCardAction = {},
@@ -170,8 +189,10 @@ class RunScreenContentTest {
         durationSec: Long,
         polyline: String,
         endTime: Long?,
+        activityType: OutdoorActivityType = OutdoorActivityType.RUN,
     ): RunEntity = RunEntity(
         id = id,
+        activityType = activityType.storageValue,
         startTime = 1_700_000_000_000L + id,
         endTime = endTime,
         distanceMeters = distanceMeters,

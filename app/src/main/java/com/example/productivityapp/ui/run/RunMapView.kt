@@ -1,10 +1,11 @@
 package com.example.productivityapp.ui.run
 
 import android.view.ViewGroup
-import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
@@ -39,7 +40,7 @@ fun RunMapView(
     onMapReady: ((MapLibreMap) -> Unit)? = null,
 ) {
     val context = LocalContext.current
-    val isDarkTheme = isSystemInDarkTheme()
+    val isDarkTheme = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     val targetStyleUrl = remember(isDarkTheme) { RunMapStyleProvider.styleUrl(isDarkTheme) }
     val decodedPoints = remember(polylineEncoded) {
         if (polylineEncoded.isBlank()) emptyList() else PolylineUtils.decode(polylineEncoded)
@@ -135,44 +136,24 @@ internal fun applyRunRouteOverlays(
     val points = visiblePairs.map { (lat, lon) -> LatLng(lat, lon) }
     if (points.isEmpty()) return
 
+    // Draw route using a light-green accent to match replay overlay.
     map.addPolyline(
         PolylineOptions()
             .addAll(points)
-            .color(RUN_ACCENT_HEX.toColorInt() and 0x55FFFFFF)
+            .color("#7BE38A".toColorInt() and 0x55FFFFFF)
             .alpha(0.35f)
-            .width(14f)
+            .width(8f)
     )
     map.addPolyline(
         PolylineOptions()
             .addAll(points)
-            .color(RUN_ACCENT_HEX.toColorInt())
-            .alpha(0.92f)
-            .width(7f)
+            .color("#7BE38A".toColorInt())
+            .alpha(0.95f)
+            .width(4f)
     )
 
-    val isReplayMode = replayPointIndex != null
-    map.addMarker(
-        MarkerOptions()
-            .position(points.first())
-            .title(if (isReplayMode && points.size == 1) "Replay position" else "Start")
-    )
-
-    val currentPoint = points.last()
-    val shouldAddSeparateMarker = currentPoint.latitude != points.first().latitude ||
-        currentPoint.longitude != points.first().longitude
-    if (shouldAddSeparateMarker) {
-        map.addMarker(
-            MarkerOptions()
-                .position(currentPoint)
-                .title(
-                    when {
-                        isReplayMode -> "Replay position"
-                        points.size == decoded.size -> "Finish"
-                        else -> "Current position"
-                    }
-                )
-        )
-    }
+    // Do not add MapLibre marker icons here; the overlay renderer will draw start/end markers
+    // so snapshots and exported frames remain visually consistent and avoid duplicate pins.
 
     if (followRoute) {
         val viewport = replayViewport ?: viewportCalculator.buildViewport(

@@ -6,13 +6,27 @@ import com.example.productivityapp.data.dao.RunDao
 import com.example.productivityapp.data.dao.RunPointDao
 import com.example.productivityapp.data.dao.SleepDao
 import com.example.productivityapp.data.dao.StepDao
+import com.example.productivityapp.data.dao.MindfulnessDao
+import com.example.productivityapp.data.dao.WorkoutDao
+import com.example.productivityapp.data.entities.MindLogEntity
+import com.example.productivityapp.data.entities.MindfulnessSessionEntity
 import com.example.productivityapp.data.entities.RunEntity
 import com.example.productivityapp.data.entities.SleepEntity
 import com.example.productivityapp.data.entities.StepEntity
+import com.example.productivityapp.data.entities.WorkoutEntity
 
 @Database(
-    entities = [com.example.productivityapp.data.entities.StepEntity::class, com.example.productivityapp.data.entities.StepSampleEntity::class, com.example.productivityapp.data.entities.RunEntity::class, com.example.productivityapp.data.entities.SleepEntity::class, com.example.productivityapp.data.entities.RunPointEntity::class],
-    version = 4,
+    entities = [
+        com.example.productivityapp.data.entities.StepEntity::class,
+        com.example.productivityapp.data.entities.StepSampleEntity::class,
+        com.example.productivityapp.data.entities.RunEntity::class,
+        com.example.productivityapp.data.entities.SleepEntity::class,
+        com.example.productivityapp.data.entities.RunPointEntity::class,
+        WorkoutEntity::class,
+        MindfulnessSessionEntity::class,
+        MindLogEntity::class,
+    ],
+    version = 7,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -20,4 +34,6 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun runDao(): RunDao
     abstract fun sleepDao(): SleepDao
     abstract fun runPointDao(): RunPointDao
+    abstract fun workoutDao(): WorkoutDao
+    abstract fun mindfulnessDao(): MindfulnessDao
 }

@@ -6,7 +6,6 @@ import android.content.Context
 import android.content.ContextWrapper
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -58,6 +57,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.productivityapp.data.RepositoryProvider
 import com.example.productivityapp.data.entities.RunEntity
 import com.example.productivityapp.data.entities.RunPointEntity
+import com.example.productivityapp.data.entities.type
 import com.example.productivityapp.run.RunAnalyticsCalculator
 import com.example.productivityapp.run.RunAnalysisSnapshot
 import com.example.productivityapp.run.RunReplayExportConfig
@@ -107,13 +107,7 @@ fun RunDetailsScreenContent(
     onBack: () -> Unit = {},
 ) {
     val currentContext = androidx.compose.ui.platform.LocalContext.current
-    val darkTheme = isSystemInDarkTheme()
-    val backdrop = if (darkTheme) RunBackdropDark else RunBackdropLight
-    val surface = if (darkTheme) RunSurfaceDark else RunSurfaceLight
-    val surfaceAlt = if (darkTheme) RunSurfaceAltDark else RunSurfaceAltLight
-    val accent = if (darkTheme) RunAccentDark else RunAccentLight
-    val tone = if (darkTheme) RunToneDark else RunToneLight
-    val chipColor = if (darkTheme) RunChipDark else RunChipLight
+    val palette = rememberRunPalette()
 
     val replayPoints = remember(run?.id, run?.polyline, runPoints) {
         if (runPoints.isNotEmpty()) {
@@ -153,25 +147,31 @@ fun RunDetailsScreenContent(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Run details", fontWeight = FontWeight.SemiBold, fontSize = 18.sp) },
+                title = {
+                    Text(
+                        "${run?.type?.label ?: "Outdoor"} details",
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 18.sp,
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Text("←", color = MaterialTheme.colorScheme.onSurface, fontSize = 18.sp)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = surface,
+                    containerColor = palette.surface,
                     titleContentColor = MaterialTheme.colorScheme.onSurface,
                 ),
             )
         },
-        containerColor = backdrop,
+        containerColor = palette.backdrop,
     ) { innerPadding ->
         Surface(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
-            color = backdrop,
+            color = palette.backdrop,
         ) {
             if (run == null) {
                 Box(
@@ -181,7 +181,7 @@ fun RunDetailsScreenContent(
                     contentAlignment = Alignment.Center,
                 ) {
                     Card(
-                        colors = CardDefaults.cardColors(containerColor = surfaceAlt),
+                        colors = CardDefaults.cardColors(containerColor = palette.surfaceAlt),
                         shape = RoundedCornerShape(24.dp),
                     ) {
                         Column(
@@ -189,12 +189,12 @@ fun RunDetailsScreenContent(
                             verticalArrangement = Arrangement.spacedBy(12.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
                         ) {
-                            Text("Run not found", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                            Text("Session not found", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                             Text(
-                                "The selected run could not be loaded. Go back to the dashboard and pick another session.",
+                                "The selected outdoor session could not be loaded. Go back to the dashboard and pick another session.",
                                 style = MaterialTheme.typography.bodyMedium,
                             )
-                            OutlinedButton(onClick = onBack) { Text("Back to Run") }
+                            OutlinedButton(onClick = onBack) { Text("Back to Run & Walk") }
                         }
                     }
                 }
@@ -209,9 +209,9 @@ fun RunDetailsScreenContent(
                     item {
                         RunDetailsHeaderCard(
                             run = run,
-                            surface = surface,
-                            tone = tone,
-                            chipColor = chipColor,
+                            surface = palette.surface,
+                            tone = palette.tone,
+                            chipColor = palette.chip,
                         )
                     }
 
@@ -222,8 +222,8 @@ fun RunDetailsScreenContent(
                             replayFrameIndex = replayFrameIndex,
                             currentReplayFrame = currentReplayFrame,
                             replayPlaying = replayPlaying,
-                            surface = surfaceAlt,
-                            accent = accent,
+                            surface = palette.surfaceAlt,
+                            accent = palette.accent,
                             onReplayFrameIndexChange = {
                                 replayPlaying = false
                                 replayFrameIndex = it.coerceIn(0, max(replayFrames.lastIndex, 0))
@@ -240,13 +240,26 @@ fun RunDetailsScreenContent(
                             exportUiState = exportUiState,
                             onExportReplay = {
                                 if (run.id <= 0L) return@RunDetailsRouteCard
+                                // If an exported result already exists, open the share intent instead of re-encoding
+                                if (exportUiState is ReplayExportUiState.Ready) {
+                                    val result = (exportUiState as ReplayExportUiState.Ready).result
+                                    try {
+                                        launchShareIntent(currentContext, result)
+                                    } catch (_: ActivityNotFoundException) {
+                                        exportUiState = ReplayExportUiState.Error("No compatible app is available to share this replay video.")
+                                    } catch (_: IllegalArgumentException) {
+                                        exportUiState = ReplayExportUiState.Error("Replay sharing could not be started.")
+                                    }
+                                    return@RunDetailsRouteCard
+                                }
+
                                 replayPlaying = false
                                 exportUiState = ReplayExportUiState.Exporting
                                 coroutineScope.launch {
                                     exportUiState = try {
                                         val result = replayExporter.exportRunReplay(
                                             runId = run.id,
-                                            isDarkTheme = darkTheme,
+                                            isDarkTheme = palette.useDarkPalette,
                                             analyticsSnapshot = analyticsSnapshot,
                                             config = RunReplayExportConfig(),
                                         )
@@ -268,31 +281,31 @@ fun RunDetailsScreenContent(
                         RunDetailsSummaryCard(
                             run = run,
                             analyticsSnapshot = analyticsSnapshot,
-                            surface = surface,
+                            surface = palette.surface,
                         )
                     }
 
                     item {
                         RunSpeedChartCard(
                             analyticsSnapshot = analyticsSnapshot,
-                            surface = surfaceAlt,
-                            accent = accent,
+                            surface = palette.surfaceAlt,
+                            accent = palette.accent,
                         )
                     }
 
                     item {
                         RunSplitListCard(
                             analyticsSnapshot = analyticsSnapshot,
-                            surface = surface,
-                            accent = accent,
+                            surface = palette.surface,
+                            accent = palette.accent,
                         )
                     }
 
                     item {
                         RunInsightsAnalyticsCard(
                             analyticsSnapshot = analyticsSnapshot,
-                            surface = surfaceAlt,
-                            accent = accent,
+                            surface = palette.surfaceAlt,
+                            accent = palette.accent,
                         )
                     }
 
@@ -318,12 +331,13 @@ private fun RunDetailsHeaderCard(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(
-                formatRunDate(run.startTime),
+                "${run.type.label} • ${formatRunDate(run.startTime)}",
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
             )
             Text(
-                "${formatRunTime(run.startTime)} ${if (run.endTime != null) "• completed run" else "• active or paused run"}",
+                "${formatRunTime(run.startTime)} ${if (run.endTime != null) "• completed" else "• active or paused"}",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -373,11 +387,17 @@ private fun RunDetailsRouteCard(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text("Route", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text(
+                "Route",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
             if (run.polyline.isBlank()) {
                 Text(
-                    "This run does not have enough route data yet.",
+                    "This ${run.type.label.lowercase()} session does not have enough route data yet.",
                     style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             } else {
                 Box(
@@ -385,7 +405,7 @@ private fun RunDetailsRouteCard(
                         .fillMaxWidth()
                         .height(320.dp)
                         .clip(RoundedCornerShape(20.dp))
-                        .background(Color.Black.copy(alpha = 0.08f)),
+                        .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)),
                 ) {
                     RunMapView(
                         polylineEncoded = run.polyline,
@@ -414,7 +434,10 @@ private fun RunDetailsRouteCard(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Text("Frame ${replayFrameIndex + 1} / ${replayFrames.size}")
+                            Text(
+                                "Frame ${replayFrameIndex + 1} / ${replayFrames.size}",
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
                             if (replayUiModel.replaySummary != null) {
                                 Text(
                                     replayUiModel.replaySummary,
@@ -440,10 +463,9 @@ private fun RunDetailsRouteCard(
                             }
                         }
                     }
-                    Row(
+                    Column(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Text("Share replay", style = MaterialTheme.typography.titleSmall, color = accent)
@@ -473,6 +495,7 @@ private fun RunDetailsRouteCard(
                                 )
                             }
                         }
+
                         if (replayUiModel.showExportProgress) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(28.dp),
@@ -481,7 +504,10 @@ private fun RunDetailsRouteCard(
                         } else {
                             Button(
                                 onClick = onExportReplay,
-                                modifier = Modifier.semantics { contentDescription = "Export run replay video" },
+                                colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = accent),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .semantics { contentDescription = "Export run replay video" },
                             ) {
                                 Text(replayUiModel.exportButtonLabel)
                             }
@@ -489,7 +515,7 @@ private fun RunDetailsRouteCard(
                     }
                 } else {
                     Text(
-                        "Replay becomes available after a completed run with enough route points.",
+                        "Replay becomes available after a completed session with enough route points.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -520,7 +546,7 @@ internal fun buildRunDetailsReplayUiModel(
         "${formatDistance(it.distanceMeters)} • ${formatDuration((it.displayElapsedMs / 1000L).coerceAtLeast(0L))}"
     }
     val exportMessage = when (exportUiState) {
-        ReplayExportUiState.Idle -> "Create a deterministic 15-second MP4 of this run."
+        ReplayExportUiState.Idle -> "Create a deterministic 15-second MP4 of this session."
         ReplayExportUiState.Exporting -> "Rendering map frames and encoding video..."
         is ReplayExportUiState.Error -> exportUiState.message
         is ReplayExportUiState.Ready -> "Replay video is ready and shareable."
@@ -586,7 +612,12 @@ private fun RunDetailsSummaryCard(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            Text("Summary", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text(
+                "Summary",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
             summaryItems.chunked(2).forEach { row ->
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -622,11 +653,17 @@ private fun RunSpeedChartCard(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Text("Speed profile", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text(
+                "Speed profile",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
             if (samples.isEmpty()) {
                 Text(
                     "Record more timed route points to build a speed profile.",
                     style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             } else {
                 Text(
@@ -661,11 +698,17 @@ private fun RunSplitListCard(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text("Splits", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text(
+                "Splits",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
             if (splits.isEmpty()) {
                 Text(
                     "Splits appear once the run has enough distance and timed route points.",
                     style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             } else {
                 splits.forEach { split ->
@@ -728,14 +771,24 @@ private fun RunInsightsAnalyticsCard(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Text("Run insights", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text(
+                "Run insights",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
             insights.forEach { insight ->
-                Text("• $insight", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    "• $insight",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
             }
             if (insights.isEmpty()) {
                 Text(
                     "More route history will unlock stronger pacing and split insights.",
                     style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
             Text(

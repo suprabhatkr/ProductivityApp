@@ -1,28 +1,16 @@
 package com.example.productivityapp.datastore.profile
 
+import com.example.productivityapp.data.model.AvatarDefaults
+import com.example.productivityapp.data.model.AvatarConfig
+import com.example.productivityapp.data.model.AvatarPresentation
 import com.example.productivityapp.data.model.UserProfile
 import com.example.productivityapp.datastore.profile.proto.MigrationStateProto
 import com.example.productivityapp.datastore.profile.proto.UserProfileProto
 
 object UserProfileSchemaMapper {
     fun fromProto(proto: UserProfileProto): SecureStoredUserProfile {
-        val profile = UserProfile(
-            displayName = if (proto.hasDisplayName()) proto.displayName else null,
-            weightKg = if (proto.hasWeightKg()) proto.weightKg else null,
-            heightCm = if (proto.hasHeightCm()) proto.heightCm else null,
-            strideLengthMeters = proto.strideLengthMeters.takeIf { it > 0.0 } ?: 0.78,
-            preferredUnits = proto.preferredUnits.takeIf { it.isNotBlank() } ?: "metric",
-            dailyStepGoal = proto.dailyStepGoal.takeIf { it > 0 } ?: 10000,
-            dailyWaterGoalMl = proto.dailyWaterGoalMl.takeIf { it > 0 } ?: 2000,
-            nightlySleepGoalMinutes = proto.nightlySleepGoalMinutes.takeIf { it > 0 } ?: 480,
-            typicalBedtimeMinutes = proto.typicalBedtimeMinutes.takeIf { it in 0..1439 } ?: 1320,
-            typicalWakeTimeMinutes = proto.typicalWakeTimeMinutes.takeIf { it in 0..1439 } ?: 420,
-            sleepDetectionBufferMinutes = proto.sleepDetectionBufferMinutes.takeIf { it >= 0 } ?: 30,
-            ageYears = proto.ageYears.takeIf { proto.hasAgeYears() && it in 1..120 },
-            gender = proto.gender.takeIf { proto.hasGender() && it.isNotBlank() },
-        )
         return SecureStoredUserProfile(
-            profile = profile,
+            profile = proto.toUserProfile(),
             schemaVersion = proto.schemaVersion.takeIf { it > 0 } ?: SecureStoredUserProfile.CURRENT_SCHEMA_VERSION,
             migrationState = proto.migrationState.toDomain(),
             migratedAtEpochMs = proto.migratedAtEpochMs,
@@ -32,25 +20,11 @@ object UserProfileSchemaMapper {
 
     fun toProto(record: SecureStoredUserProfile): UserProfileProto {
         val builder = UserProfileProto.newBuilder()
-            .setStrideLengthMeters(record.profile.strideLengthMeters)
-            .setPreferredUnits(record.profile.preferredUnits)
-            .setDailyStepGoal(record.profile.dailyStepGoal)
-            .setDailyWaterGoalMl(record.profile.dailyWaterGoalMl)
-            .setNightlySleepGoalMinutes(record.profile.nightlySleepGoalMinutes)
-            .setTypicalBedtimeMinutes(record.profile.typicalBedtimeMinutes)
-            .setTypicalWakeTimeMinutes(record.profile.typicalWakeTimeMinutes)
-            .setSleepDetectionBufferMinutes(record.profile.sleepDetectionBufferMinutes)
             .setSchemaVersion(record.schemaVersion)
             .setMigrationState(record.migrationState.toProto())
             .setMigratedAtEpochMs(record.migratedAtEpochMs)
             .setLastWriteEpochMs(record.lastWriteEpochMs)
-
-        record.profile.displayName?.takeIf { it.isNotBlank() }?.let(builder::setDisplayName)
-        record.profile.weightKg?.let(builder::setWeightKg)
-        record.profile.heightCm?.let(builder::setHeightCm)
-        record.profile.ageYears?.let(builder::setAgeYears)
-        record.profile.gender?.takeIf { it.isNotBlank() }?.let(builder::setGender)
-        return builder.build()
+        return builder.applyUserProfile(record.profile).build()
     }
 
     fun fromLegacy(snapshot: LegacyProfileSnapshot): SecureStoredUserProfile {
@@ -82,6 +56,56 @@ object UserProfileSchemaMapper {
             migrationState = ProfileMigrationState.NONE,
         )
     }
+}
+
+private fun UserProfileProto.toUserProfile(): UserProfile {
+    return UserProfile(
+        displayName = displayName.takeIf { hasDisplayName() && it.isNotBlank() },
+        weightKg = weightKg.takeIf { hasWeightKg() },
+        heightCm = heightCm.takeIf { hasHeightCm() && it > 0 },
+        strideLengthMeters = strideLengthMeters.takeIf { it > 0.0 } ?: 0.78,
+        preferredUnits = preferredUnits.takeIf { it.isNotBlank() } ?: "metric",
+        dailyStepGoal = dailyStepGoal.takeIf { it > 0 } ?: 10000,
+        dailyWaterGoalMl = dailyWaterGoalMl.takeIf { it > 0 } ?: 2000,
+        nightlySleepGoalMinutes = nightlySleepGoalMinutes.takeIf { it > 0 } ?: 480,
+        typicalBedtimeMinutes = typicalBedtimeMinutes.takeIf { it in 0..1439 } ?: 1320,
+        typicalWakeTimeMinutes = typicalWakeTimeMinutes.takeIf { it in 0..1439 } ?: 420,
+        sleepDetectionBufferMinutes = sleepDetectionBufferMinutes.takeIf { it >= 0 } ?: 30,
+        ageYears = ageYears.takeIf { hasAgeYears() && it in 1..120 },
+        gender = gender.takeIf { hasGender() && it.isNotBlank() },
+        avatar = AvatarConfig(
+            avatarId = when {
+                hasAvatarId() -> AvatarDefaults.normalizeAvatarId(avatarId)
+                else -> AvatarDefaults.fallbackIdForLegacyPresentation(
+                    AvatarPresentation.fromStorageValue(avatarPresentation.takeIf { hasAvatarPresentation() })
+                )
+            },
+        ),
+    )
+}
+
+private fun UserProfileProto.Builder.applyUserProfile(profile: UserProfile): UserProfileProto.Builder {
+    setStrideLengthMeters(profile.strideLengthMeters)
+    setPreferredUnits(profile.preferredUnits)
+    setDailyStepGoal(profile.dailyStepGoal)
+    setDailyWaterGoalMl(profile.dailyWaterGoalMl)
+    setNightlySleepGoalMinutes(profile.nightlySleepGoalMinutes)
+    setTypicalBedtimeMinutes(profile.typicalBedtimeMinutes)
+    setTypicalWakeTimeMinutes(profile.typicalWakeTimeMinutes)
+    setSleepDetectionBufferMinutes(profile.sleepDetectionBufferMinutes)
+    setAvatarId(AvatarDefaults.normalizeAvatarId(profile.avatar.avatarId))
+    clearAvatarSkinTone()
+    clearAvatarPresentation()
+    clearAvatarHairStyle()
+    clearAvatarGlassesStyle()
+    clearAvatarHatStyle()
+
+    profile.displayName?.takeIf { it.isNotBlank() }?.let(::setDisplayName) ?: clearDisplayName()
+    profile.weightKg?.let(::setWeightKg) ?: clearWeightKg()
+    profile.heightCm?.let(::setHeightCm) ?: clearHeightCm()
+    profile.ageYears?.let(::setAgeYears) ?: clearAgeYears()
+    profile.gender?.takeIf { it.isNotBlank() }?.let(::setGender) ?: clearGender()
+    return this
 }
 
 private fun MigrationStateProto.toDomain(): ProfileMigrationState = when (this) {

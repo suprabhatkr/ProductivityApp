@@ -13,6 +13,12 @@ class UserProfileProto private constructor(
     private val heightCmValue: Int?,
     private val ageYearsValue: Int?,
     private val genderValue: String?,
+    private val avatarIdValue: String?,
+    private val avatarSkinToneValue: String?,
+    private val avatarPresentationValue: String?,
+    private val avatarHairStyleValue: String?,
+    private val avatarGlassesStyleValue: String?,
+    private val avatarHatStyleValue: String?,
     val strideLengthMeters: Double,
     val preferredUnits: String,
     val dailyStepGoal: Int,
@@ -41,6 +47,24 @@ class UserProfileProto private constructor(
     val gender: String
         get() = genderValue.orEmpty()
 
+    val avatarId: String
+        get() = avatarIdValue.orEmpty()
+
+    val avatarSkinTone: String
+        get() = avatarSkinToneValue.orEmpty()
+
+    val avatarPresentation: String
+        get() = avatarPresentationValue.orEmpty()
+
+    val avatarHairStyle: String
+        get() = avatarHairStyleValue.orEmpty()
+
+    val avatarGlassesStyle: String
+        get() = avatarGlassesStyleValue.orEmpty()
+
+    val avatarHatStyle: String
+        get() = avatarHatStyleValue.orEmpty()
+
     fun hasDisplayName(): Boolean = displayNameValue != null
 
     fun hasWeightKg(): Boolean = weightKgValue != null
@@ -50,6 +74,18 @@ class UserProfileProto private constructor(
     fun hasAgeYears(): Boolean = ageYearsValue != null
 
     fun hasGender(): Boolean = genderValue != null
+
+    fun hasAvatarId(): Boolean = avatarIdValue != null
+
+    fun hasAvatarSkinTone(): Boolean = avatarSkinToneValue != null
+
+    fun hasAvatarPresentation(): Boolean = avatarPresentationValue != null
+
+    fun hasAvatarHairStyle(): Boolean = avatarHairStyleValue != null
+
+    fun hasAvatarGlassesStyle(): Boolean = avatarGlassesStyleValue != null
+
+    fun hasAvatarHatStyle(): Boolean = avatarHatStyleValue != null
 
     fun writeTo(output: OutputStream) {
         val codedOutput = CodedOutputStream.newInstance(output)
@@ -67,6 +103,24 @@ class UserProfileProto private constructor(
         }
         genderValue?.let {
             codedOutput.writeString(17, it)
+        }
+        avatarIdValue?.let {
+            codedOutput.writeString(23, it)
+        }
+        avatarSkinToneValue?.let {
+            codedOutput.writeString(18, it)
+        }
+        avatarPresentationValue?.let {
+            codedOutput.writeString(19, it)
+        }
+        avatarHairStyleValue?.let {
+            codedOutput.writeString(20, it)
+        }
+        avatarGlassesStyleValue?.let {
+            codedOutput.writeString(21, it)
+        }
+        avatarHatStyleValue?.let {
+            codedOutput.writeString(22, it)
         }
         codedOutput.writeDouble(4, strideLengthMeters)
         codedOutput.writeString(5, preferredUnits)
@@ -90,6 +144,12 @@ class UserProfileProto private constructor(
             heightCmValue?.let(::setHeightCm)
             ageYearsValue?.let(::setAgeYears)
             genderValue?.let(::setGender)
+            avatarIdValue?.let(::setAvatarId)
+            avatarSkinToneValue?.let(::setAvatarSkinTone)
+            avatarPresentationValue?.let(::setAvatarPresentation)
+            avatarHairStyleValue?.let(::setAvatarHairStyle)
+            avatarGlassesStyleValue?.let(::setAvatarGlassesStyle)
+            avatarHatStyleValue?.let(::setAvatarHatStyle)
             setStrideLengthMeters(strideLengthMeters)
             setPreferredUnits(preferredUnits)
             setDailyStepGoal(dailyStepGoal)
@@ -110,6 +170,12 @@ class UserProfileProto private constructor(
         private var heightCm: Int? = null
         private var ageYears: Int? = null
         private var gender: String? = null
+        private var avatarId: String? = null
+        private var avatarSkinTone: String? = null
+        private var avatarPresentation: String? = null
+        private var avatarHairStyle: String? = null
+        private var avatarGlassesStyle: String? = null
+        private var avatarHatStyle: String? = null
         private var strideLengthMeters: Double = 0.0
         private var preferredUnits: String = ""
         private var dailyStepGoal: Int = 0
@@ -143,6 +209,30 @@ class UserProfileProto private constructor(
 
         fun clearGender() = apply { gender = null }
 
+        fun setAvatarId(value: String) = apply { avatarId = value }
+
+        fun clearAvatarId() = apply { avatarId = null }
+
+        fun setAvatarSkinTone(value: String) = apply { avatarSkinTone = value }
+
+        fun clearAvatarSkinTone() = apply { avatarSkinTone = null }
+
+        fun setAvatarPresentation(value: String) = apply { avatarPresentation = value }
+
+        fun clearAvatarPresentation() = apply { avatarPresentation = null }
+
+        fun setAvatarHairStyle(value: String) = apply { avatarHairStyle = value }
+
+        fun clearAvatarHairStyle() = apply { avatarHairStyle = null }
+
+        fun setAvatarGlassesStyle(value: String) = apply { avatarGlassesStyle = value }
+
+        fun clearAvatarGlassesStyle() = apply { avatarGlassesStyle = null }
+
+        fun setAvatarHatStyle(value: String) = apply { avatarHatStyle = value }
+
+        fun clearAvatarHatStyle() = apply { avatarHatStyle = null }
+
         fun setStrideLengthMeters(value: Double) = apply { strideLengthMeters = value }
 
         fun setPreferredUnits(value: String) = apply { preferredUnits = value }
@@ -173,6 +263,12 @@ class UserProfileProto private constructor(
             heightCmValue = heightCm,
             ageYearsValue = ageYears,
             genderValue = gender,
+            avatarIdValue = avatarId,
+            avatarSkinToneValue = avatarSkinTone,
+            avatarPresentationValue = avatarPresentation,
+            avatarHairStyleValue = avatarHairStyle,
+            avatarGlassesStyleValue = avatarGlassesStyle,
+            avatarHatStyleValue = avatarHatStyle,
             strideLengthMeters = strideLengthMeters,
             preferredUnits = preferredUnits,
             dailyStepGoal = dailyStepGoal,
@@ -207,6 +303,12 @@ class UserProfileProto private constructor(
                         24 -> builder.setHeightCm(codedInput.readInt32())
                         128 -> builder.setAgeYears(codedInput.readInt32())
                         138 -> builder.setGender(codedInput.readString())
+                        186 -> builder.setAvatarId(codedInput.readString())
+                        146 -> builder.setAvatarSkinTone(codedInput.readString())
+                        154 -> builder.setAvatarPresentation(codedInput.readString())
+                        162 -> builder.setAvatarHairStyle(codedInput.readString())
+                        170 -> builder.setAvatarGlassesStyle(codedInput.readString())
+                        178 -> builder.setAvatarHatStyle(codedInput.readString())
                         33 -> builder.setStrideLengthMeters(codedInput.readDouble())
                         42 -> builder.setPreferredUnits(codedInput.readString())
                         48 -> builder.setDailyStepGoal(codedInput.readInt32())
